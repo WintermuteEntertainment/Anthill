@@ -2,39 +2,38 @@
 let statusInterval = null;
 
 document.addEventListener('DOMContentLoaded', () => {
-  // Check current status
   updateStatus();
   
-  // Start Export button
   document.getElementById('exportBtn').addEventListener('click', startExport);
-  
-  // Stop Scraping button
   document.getElementById('stopBtn').addEventListener('click', stopScraping);
-  
-  // Download Pipeline button
   document.getElementById('pipelineBtn').addEventListener('click', downloadPipeline);
 });
 
 async function startExport() {
   try {
-    // Get current tab
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     
-    // Extract conversation links from current page
     const response = await chrome.tabs.sendMessage(tab.id, { action: 'extractLinks' });
     
-    if (!response || !response.ok) {
-      alert('Could not extract conversations. Make sure you are on ChatGPT.com with the sidebar open.');
+    if (!response || !response.ok || response.conversations.length === 0) {
+      alert('No conversations found. Make sure you are on ChatGPT.com with the sidebar open.');
       return;
     }
     
-    if (response.conversations.length === 0) {
-      alert('No conversations found. Make sure you are viewing your ChatGPT conversation history.');
+    // Filter out conversations with CSS code in titles (clean up)
+    const cleanConversations = response.conversations.filter(conv => 
+      !conv.title.includes('{') && 
+      !conv.title.includes(';') && 
+      !conv.title.includes('@keyframes') &&
+      conv.title.length < 100
+    );
+    
+    if (cleanConversations.length === 0) {
+      alert('Found conversations but they appear to be invalid. Try refreshing the page.');
       return;
     }
     
-    // Show confirmation
-    const proceed = confirm(`Found ${response.conversations.length} conversations. This will open each conversation in a new tab temporarily. DO NOT CLOSE CHROME during this process. Continue?`);
+    const proceed = confirm(`Found ${cleanConversations.length} conversations. This will open each conversation in a new tab temporarily. DO NOT CLOSE CHROME during this process. Continue?`);
     
     if (!proceed) return;
     
@@ -43,13 +42,12 @@ async function startExport() {
     document.getElementById('stopBtn').style.display = 'block';
     document.getElementById('progressContainer').style.display = 'block';
     
-    // Start scraping
+    // Start scraping with cleaned conversations
     await chrome.runtime.sendMessage({ 
       action: 'startScraping', 
-      conversations: response.conversations 
+      conversations: cleanConversations 
     });
     
-    // Start status updates
     startStatusUpdates();
     
   } catch (error) {
@@ -74,20 +72,25 @@ async function updateStatus() {
     const status = await chrome.runtime.sendMessage({ action: 'getStatus' });
     
     if (status.isActive) {
-      // Update progress bar
       const progress = (status.completed / status.total) * 100;
       document.getElementById('progressFill').style.width = `${progress}%`;
       document.getElementById('statusText').textContent = 
         `Scraping... ${status.completed}/${status.total} conversations`;
       
-      // Show stop button
       document.getElementById('exportBtn').style.display = 'none';
       document.getElementById('stopBtn').style.display = 'block';
       document.getElementById('progressContainer').style.display = 'block';
       
-      // Start updates if not already
       if (!statusInterval) {
         startStatusUpdates();
+      }
+      
+      // If scraping just completed, show success message
+      if (status.completed >= status.total) {
+        setTimeout(() => {
+          alert(`Scraping complete! ${status.completed} conversations saved. File should download automatically.`);
+          resetUI();
+        }, 1000);
       }
     } else {
       resetUI();

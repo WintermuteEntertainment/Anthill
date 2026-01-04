@@ -1,5 +1,4 @@
 // Anthill Spider Content Script
-// Wrapped in IIFE to avoid scope issues
 (function() {
   // Prevent multiple loads
   if (window.__CHATGPT_EXPORTER_LOADED__) {
@@ -26,9 +25,6 @@
       });
       return true; // Keep channel open for async
     }
-    else if (request.action === 'test') {
-      sendResponse({ ok: true, message: 'Content script is working' });
-    }
     
     return true;
   });
@@ -45,8 +41,22 @@
           if (!href || seen.has(href)) return;
           seen.add(href);
           
-          const title = a.textContent?.trim() || a.innerText?.trim();
-          if (!title) return;
+          // Get clean title - skip CSS/JS content
+          let title = a.textContent?.trim() || a.innerText?.trim();
+          
+          // Skip titles that look like code (contain CSS, JS, or are too long)
+          if (!title || 
+              title.length > 200 || 
+              title.includes('{') || 
+              title.includes(';') || 
+              title.includes('px') ||
+              title.includes('var(') ||
+              title.includes('@keyframes')) {
+            return;
+          }
+          
+          // Clean up title
+          title = title.replace(/\s+/g, ' ').trim();
           
           conversations.push({
             id: href.replace('/c/', ''),
@@ -105,11 +115,6 @@
   
   async function waitForPageReady(timeout = 10000) {
     const start = Date.now();
-    
-    // Check if we're on a conversation page
-    if (!window.location.pathname.includes('/c/')) {
-      throw new Error('Not a conversation page');
-    }
     
     // Wait for message elements to appear
     while (Date.now() - start < timeout) {
@@ -237,18 +242,4 @@
     
     return uniqueMessages;
   }
-  
-  // Debug function
-  window.debugSpider = async function() {
-    console.log('[Spider] === DEBUG ===');
-    console.log('URL:', window.location.href);
-    
-    const links = extractConversationLinks();
-    console.log('Conversations found:', links.length);
-    
-    const messages = await extractMessages();
-    console.log('Messages found:', messages.length);
-    
-    return { links, messages };
-  };
 })();

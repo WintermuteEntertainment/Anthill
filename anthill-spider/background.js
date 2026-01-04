@@ -6,9 +6,7 @@ let scrapingSession = {
   total: 0,
   completed: 0,
   failed: 0,
-  conversations: [],
-  startTime: null,
-  activeTabs: new Set()
+  conversations: []
 };
 
 // Listen for messages
@@ -58,93 +56,56 @@ function startScraping(conversations) {
     total: conversations.length,
     completed: 0,
     failed: 0,
-    conversations: [],
-    startTime: new Date().toISOString(),
-    activeTabs: new Set()
+    conversations: []
   };
   
-  // Save to storage for persistence
-  chrome.storage.local.set({ scrapingSession });
-  
-  // Process each conversation with a delay
-  processConversationsSequentially(conversations, 0);
+  // Process conversations one by one
+  processNextConversation(conversations, 0);
 }
 
-async function processConversationsSequentially(conversations, index) {
-  if (index >= conversations.length || !scrapingSession.isActive) {
+function processNextConversation(conversations, index) {
+  if (index >= conversations.length) {
+    console.log('[Background] All conversations processed');
     checkCompletion();
     return;
   }
   
-  const conversation = conversations[index];
-  console.log(`[Background] Processing ${index + 1}/${conversations.length}: ${conversation.title}`);
-  
-  try {
-    // Create a new tab
-    const tab = await chrome.tabs.create({
-      url: conversation.url,
-      active: false
-    });
-    
-    scrapingSession.activeTabs.add(tab.id);
-    
-    // Wait for tab to load completely
-    await waitForTabLoad(tab.id);
-    
-    // Wait a bit for content to render
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    // Send message to scrape this tab
-    chrome.tabs.sendMessage(tab.id, {
-      action: 'scrapeThisPage',
-      conversation: conversation
-    }, (response) => {
-      if (chrome.runtime.lastError) {
-        console.error(`[Background] Error sending message to tab ${tab.id}:`, chrome.runtime.lastError);
-        scrapingSession.failed++;
-      } else if (response && response.ok) {
-        handleScrapedConversation(response.data);
-      } else {
-        scrapingSession.failed++;
-      }
-      
-      // Close the tab
-      chrome.tabs.remove(tab.id);
-      scrapingSession.activeTabs.delete(tab.id);
-      
-      // Process next conversation
-      setTimeout(() => {
-        processConversationsSequentially(conversations, index + 1);
-      }, 1000);
-    });
-    
-  } catch (error) {
-    console.error(`[Background] Error processing ${conversation.title}:`, error);
-    scrapingSession.failed++;
-    
-    // Continue with next
-    setTimeout(() => {
-      processConversationsSequentially(conversations, index + 1);
-    }, 1000);
+  if (!scrapingSession.isActive) {
+    console.log('[Background] Scraping stopped by user');
+    return;
   }
-}
-
-function waitForTabLoad(tabId) {
-  return new Promise((resolve) => {
-    const listener = (updatedTabId, changeInfo) => {
-      if (updatedTabId === tabId && changeInfo.status === 'complete') {
-        chrome.tabs.onUpdated.removeListener(listener);
-        resolve();
-      }
-    };
-    
-    chrome.tabs.onUpdated.addListener(listener);
-    
-    // Timeout after 10 seconds
+  
+  const conversation = conversations[index];
+  console.log(`[Background] Processing ${index + 1}/${conversations.length}: ${conversation.title.substring(0, 50)}...`);
+  
+  // Create a new tab for this conversation
+  chrome.tabs.create({
+    url: conversation.url,
+    active: false
+  }, (tab) => {
+    // Wait for tab to load
     setTimeout(() => {
-      chrome.tabs.onUpdated.removeListener(listener);
-      resolve();
-    }, 10000);
+      chrome.tabs.sendMessage(tab.id, {
+        action: 'scrapeThisPage',
+        conversation: conversation
+      }, (response) => {
+        if (response && response.ok) {
+          console.log(`[Background] Successfully scraped: ${conversation.title.substring(0, 50)}...`);
+          handleScrapedConversation(response.data);
+        } else {
+          console.error(`[Background] Failed to scrape: ${conversation.title}`);
+          scrapingSession.failed++;
+        }
+        
+        // Close the tab
+        chrome.tabs.remove(tab.id);
+        
+        // Process next conversation
+        setTimeout(() => {
+          processNextConversation(conversations, index + 1);
+        }, 1000);
+      });
+    }, 3000); // Wait 3 seconds for page to load
   });
 }
 
@@ -152,78 +113,67 @@ function handleScrapedConversation(data) {
   scrapingSession.completed++;
   scrapingSession.conversations.push(data);
   
-  // Update storage
-  chrome.storage.local.set({ scrapingSession });
+  console.log(`[Background] Progress: ${scrapingSession.completed}/${scrapingSession.total}`);
   
-  console.log(`[Background] Scraped ${scrapingSession.completed}/${scrapingSession.total}: ${data.title}`);
-}
-
-function checkCompletion() {
+  // Check if all done
   if (scrapingSession.completed + scrapingSession.failed >= scrapingSession.total) {
-    scrapingSession.isActive = false;
-    scrapingSession.endTime = new Date().toISOString();
-    
-    // Close any remaining tabs
-    scrapingSession.activeTabs.forEach(tabId => {
-      chrome.tabs.remove(tabId).catch(() => {});
-    });
-    
-    // Compile and download
-    compileAndDownload();
+    completeScraping();
   }
 }
 
-function stopScraping() {
+function completeScraping() {
+  console.log('[Background] All conversations scraped, compiling dataset...');
   scrapingSession.isActive = false;
   
-  // Close all active tabs
-  scrapingSession.activeTabs.forEach(tabId => {
-    chrome.tabs.remove(tabId).catch(() => {});
-  });
-  
-  console.log('[Background] Scraping stopped by user');
-}
-
-function compileAndDownload() {
-  console.log('[Background] Compiling dataset...');
-  
+  // Create the dataset
   const dataset = {
     metadata: {
       exportDate: new Date().toISOString(),
       totalConversations: scrapingSession.total,
       successfullyScraped: scrapingSession.completed,
       failed: scrapingSession.failed,
-      source: 'Anthill Spider v1.0',
-      startTime: scrapingSession.startTime,
-      endTime: scrapingSession.endTime
+      source: 'Anthill Spider v1.0'
     },
     conversations: scrapingSession.conversations
   };
   
+  // Convert to JSON
   const jsonData = JSON.stringify(dataset, null, 2);
+  
+  // Create a Blob and download it
   const blob = new Blob([jsonData], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
   
-  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-  const filename = `chatgpt_conversations_${timestamp}.json`;
+  // Create object URL - FIXED: Use self.URL for service worker context
+  const url = self.URL.createObjectURL(blob);
   
+  // Download the file
   chrome.downloads.download({
     url: url,
-    filename: filename,
-    saveAs: true
+    filename: `chatgpt_conversations_${Date.now()}.json`,
+    saveAs: false // Set to true if you want "Save As" dialog
   }, (downloadId) => {
     if (chrome.runtime.lastError) {
       console.error('[Background] Download failed:', chrome.runtime.lastError);
     } else {
-      console.log(`[Background] Download started: ${filename}`);
+      console.log(`[Background] Download started with ID: ${downloadId}`);
     }
     
-    // Clean up
+    // Clean up the URL object after download
     setTimeout(() => {
-      URL.revokeObjectURL(url);
-      chrome.storage.local.remove(['scrapingSession']);
+      self.URL.revokeObjectURL(url);
     }, 10000);
   });
+}
+
+function checkCompletion() {
+  if (scrapingSession.completed + scrapingSession.failed >= scrapingSession.total) {
+    completeScraping();
+  }
+}
+
+function stopScraping() {
+  scrapingSession.isActive = false;
+  console.log('[Background] Scraping stopped by user');
 }
 
 function downloadPipeline() {
@@ -231,19 +181,11 @@ function downloadPipeline() {
     url: chrome.runtime.getURL('pipeline/anthill_loom_pipeline.zip'),
     filename: 'anthill_loom_pipeline.zip',
     saveAs: true
+  }, (downloadId) => {
+    if (chrome.runtime.lastError) {
+      console.error('[Background] Pipeline download failed:', chrome.runtime.lastError);
+    } else {
+      console.log(`[Background] Pipeline download started with ID: ${downloadId}`);
+    }
   });
 }
-
-// Load saved session on startup
-chrome.storage.local.get(['scrapingSession'], (result) => {
-  if (result.scrapingSession) {
-    scrapingSession = result.scrapingSession;
-    scrapingSession.activeTabs = new Set(scrapingSession.activeTabs || []);
-    
-    // Check if we need to resume
-    if (scrapingSession.isActive && 
-        scrapingSession.completed + scrapingSession.failed < scrapingSession.total) {
-      console.log('[Background] Resuming previous scraping session');
-    }
-  }
-});
