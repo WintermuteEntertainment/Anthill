@@ -4,7 +4,7 @@ The Ants Go Marching One by One...
 
 # Anthill Spider
 
-Anthill Spider is a browser extension that extracts ChatGPT conversations from
+Anthill Spider is a Chrome browser extension that extracts ChatGPT conversations from
 the web UI and exports them as structured JSON.
 
 ### Output
