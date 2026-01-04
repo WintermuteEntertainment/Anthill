@@ -10,4 +10,4 @@ It consists of three modular components:
 - **Anthill Loom** — a Python pipeline that converts conversations into training-ready datasets
 - **Anthill Forge** — model training scripts for fine-tuning instruction-following LLMs
 
-Designed for transparency, reproducibility, and scale.
+Currently only a Chrome browser extension.
