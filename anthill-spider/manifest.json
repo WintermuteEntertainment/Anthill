@@ -1,0 +1,46 @@
+{
+  "manifest_version": 3,
+  "name": "Anthill Spider",
+  "version": "1.0.0",
+  "description": "Scrape ChatGPT conversations for dataset creation.",
+  
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "downloads",
+    "storage",
+    "tabs"
+  ],
+  
+  "host_permissions": [
+    "https://chatgpt.com/*",
+    "https://chat.openai.com/*"
+  ],
+  
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  
+  "content_scripts": [
+    {
+      "matches": [
+        "https://chatgpt.com/*",
+        "https://chat.openai.com/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  
+  "action": {
+    "default_popup": "popup.html"
+  },
+  
+  "web_accessible_resources": [
+    {
+      "resources": ["pipeline/*"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}
