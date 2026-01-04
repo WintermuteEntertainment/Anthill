@@ -7,25 +7,40 @@
   }
   
   window.__CHATGPT_EXPORTER_LOADED__ = true;
-  console.log('[Spider] Content script loaded');
+  console.log('[Spider] Content script loaded at', new Date().toISOString());
   
   // Message listener
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     console.log('[Spider] Received action:', request.action);
     
     if (request.action === 'extractLinks') {
-      const conversations = extractConversationLinks();
-      sendResponse({ ok: true, conversations });
-    }
-    else if (request.action === 'scrapeThisPage') {
-      scrapeCurrentPage(request.conversation).then(result => {
-        sendResponse(result);
-      }).catch(error => {
+      try {
+        const conversations = extractConversationLinks();
+        sendResponse({ ok: true, conversations });
+      } catch (error) {
+        console.error('[Spider] Error extracting links:', error);
         sendResponse({ ok: false, error: error.message });
-      });
-      return true; // Keep channel open for async
+      }
+      return true;
     }
     
+    if (request.action === 'scrapeThisPage') {
+      console.log('[Spider] Scraping conversation:', request.conversation?.title);
+      
+      scrapeCurrentPage(request.conversation)
+        .then(result => {
+          sendResponse(result);
+        })
+        .catch(error => {
+          console.error('[Spider] Error scraping page:', error);
+          sendResponse({ ok: false, error: error.message });
+        });
+      
+      return true; // Keep channel open for async response
+    }
+    
+    // Handle unknown actions
+    sendResponse({ ok: false, error: 'Unknown action: ' + request.action });
     return true;
   });
   
@@ -41,22 +56,26 @@
           if (!href || seen.has(href)) return;
           seen.add(href);
           
-          // Get clean title - skip CSS/JS content
           let title = a.textContent?.trim() || a.innerText?.trim();
           
-          // Skip titles that look like code (contain CSS, JS, or are too long)
+          // Skip CSS/JS code and very long titles
           if (!title || 
               title.length > 200 || 
               title.includes('{') || 
-              title.includes(';') || 
+              title.includes('}') || 
               title.includes('px') ||
+              title.includes('@keyframes') ||
               title.includes('var(') ||
-              title.includes('@keyframes')) {
+              title.includes('.starburst') ||
+              title.includes('animation:') ||
+              title.includes('fill:') ||
+              title.includes('opacity:')) {
             return;
           }
           
-          // Clean up title
           title = title.replace(/\s+/g, ' ').trim();
+          
+          if (title.length < 2 || title.length > 150) return;
           
           conversations.push({
             id: href.replace('/c/', ''),
@@ -64,7 +83,7 @@
             url: 'https://chatgpt.com' + href
           });
         } catch (e) {
-          console.warn('[Spider] Error processing link:', e);
+          console.warn('[Spider] Error processing anchor:', e);
         }
       });
       
@@ -80,11 +99,11 @@
     try {
       console.log(`[Spider] Scraping: ${conversation.title}`);
       
-      // Wait for page to be ready
-      await waitForPageReady();
+      // Wait for page to be fully loaded
+      await ensurePageFullyLoaded();
       
       // Extract messages
-      const messages = await extractMessages();
+      const messages = extractMessages();
       
       return {
         ok: true,
@@ -113,38 +132,126 @@
     }
   }
   
-  async function waitForPageReady(timeout = 10000) {
-    const start = Date.now();
+  async function ensurePageFullyLoaded() {
+    console.log('[Spider] Ensuring page is fully loaded...');
     
-    // Wait for message elements to appear
-    while (Date.now() - start < timeout) {
-      // Check for various ChatGPT message selectors
-      const selectors = [
-        '[data-message-author-role]',
-        '.markdown',
-        '.whitespace-pre-wrap',
-        'article',
-        'div[class*="message"]'
-      ];
-      
-      for (const selector of selectors) {
-        const elements = document.querySelectorAll(selector);
-        if (elements.length > 0) {
-          console.log(`[Spider] Found ${elements.length} elements with selector: ${selector}`);
-          return true;
-        }
-      }
-      
-      await new Promise(resolve => setTimeout(resolve, 500));
+    // First, wait for the page to be interactive
+    await waitForPageInteractive();
+    
+    // Scroll to trigger lazy loading of all messages
+    await scrollToLoadAllContent();
+    
+    // Wait for any animations or lazy loading to complete
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    // Try to find message elements
+    const hasMessages = await waitForMessages();
+    
+    if (!hasMessages) {
+      throw new Error('No messages found on page after loading');
     }
     
-    throw new Error('Timeout waiting for page to load');
+    console.log('[Spider] Page fully loaded and ready for scraping');
   }
   
-  async function extractMessages() {
+  function waitForPageInteractive(timeout = 30000) {
+    return new Promise((resolve, reject) => {
+      const start = Date.now();
+      
+      const check = () => {
+        if (document.readyState === 'complete' || document.readyState === 'interactive') {
+          resolve();
+        } else if (Date.now() - start > timeout) {
+          reject(new Error('Timeout waiting for page to be interactive'));
+        } else {
+          setTimeout(check, 500);
+        }
+      };
+      
+      check();
+    });
+  }
+  
+  async function scrollToLoadAllContent() {
+    console.log('[Spider] Scrolling to load all content...');
+    
+    // Scroll to top first
+    window.scrollTo(0, 0);
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    // Scroll to bottom slowly to trigger lazy loading
+    const scrollStep = 500;
+    const scrollDelay = 300;
+    const maxScrolls = 50;
+    
+    let lastScrollPosition = 0;
+    let scrollCount = 0;
+    
+    return new Promise((resolve) => {
+      const scrollInterval = setInterval(() => {
+        // Calculate next scroll position
+        const nextScroll = Math.min(
+          window.scrollY + scrollStep,
+          document.body.scrollHeight || document.documentElement.scrollHeight
+        );
+        
+        // Scroll to next position
+        window.scrollTo(0, nextScroll);
+        
+        // Check if we've reached the bottom or max scrolls
+        if (nextScroll === lastScrollPosition || scrollCount >= maxScrolls) {
+          clearInterval(scrollInterval);
+          console.log(`[Spider] Finished scrolling after ${scrollCount} steps`);
+          resolve();
+        }
+        
+        lastScrollPosition = nextScroll;
+        scrollCount++;
+      }, scrollDelay);
+    });
+  }
+  
+  function waitForMessages(timeout = 15000) {
+    return new Promise((resolve) => {
+      const start = Date.now();
+      
+      const check = () => {
+        // Look for message elements
+        const selectors = [
+          '[data-message-author-role]',
+          '.markdown',
+          '.whitespace-pre-wrap',
+          'article',
+          'div[class*="message"]',
+          'div[class*="Message"]'
+        ];
+        
+        for (const selector of selectors) {
+          const elements = document.querySelectorAll(selector);
+          if (elements.length > 0) {
+            console.log(`[Spider] Found ${elements.length} elements with selector: ${selector}`);
+            resolve(true);
+            return;
+          }
+        }
+        
+        if (Date.now() - start > timeout) {
+          console.warn('[Spider] Timeout waiting for messages');
+          resolve(false);
+          return;
+        }
+        
+        setTimeout(check, 1000);
+      };
+      
+      check();
+    });
+  }
+  
+  function extractMessages() {
     const messages = [];
     
-    // Method 1: Look for elements with data-message-author-role
+    // Method 1: Look for elements with data-message-author-role (most reliable)
     const roleElements = document.querySelectorAll('[data-message-author-role]');
     
     if (roleElements.length > 0) {
@@ -153,13 +260,25 @@
       roleElements.forEach(element => {
         try {
           const role = element.getAttribute('data-message-author-role');
-          const text = element.textContent?.trim() || element.innerText?.trim();
+          let text = element.textContent?.trim() || element.innerText?.trim();
+          
+          // Clean up the text
+          if (text) {
+            text = text.replace(/\n+/g, ' ').replace(/\s+/g, ' ').trim();
+          }
           
           if (text && text.length > 5) {
+            // Skip system messages or UI elements
+            if (text.includes('ChatGPT') || text.includes('Model:') || 
+                text.includes('Upgrade to Plus') || text.length > 10000) {
+              return;
+            }
+            
             messages.push({
               role: role,
               text: text,
-              timestamp: new Date().toISOString()
+              timestamp: new Date().toISOString(),
+              source: 'role-attribute'
             });
           }
         } catch (e) {
@@ -168,78 +287,61 @@
       });
     }
     
-    // Method 2: If no messages found, try fallback
+    // Method 2: If no messages found with role attribute, try other selectors
     if (messages.length === 0) {
-      console.log('[Spider] Using fallback extraction');
-      return extractMessagesFallback();
+      console.log('[Spider] No role elements found, trying other selectors');
+      
+      const fallbackSelectors = [
+        '.markdown',
+        '.whitespace-pre-wrap',
+        'article',
+        'div[class*="message"]'
+      ];
+      
+      fallbackSelectors.forEach(selector => {
+        document.querySelectorAll(selector).forEach(element => {
+          try {
+            let text = element.textContent?.trim() || element.innerText?.trim();
+            
+            if (text) {
+              text = text.replace(/\n+/g, ' ').replace(/\s+/g, ' ').trim();
+            }
+            
+            if (text && text.length > 10) {
+              // Determine role based on element position or classes
+              let role = 'assistant';
+              if (element.closest('.items-end') || 
+                  element.closest('[data-message-author-role="user"]') ||
+                  element.textContent.includes('You:')) {
+                role = 'user';
+              }
+              
+              messages.push({
+                role: role,
+                text: text,
+                source: `selector: ${selector}`
+              });
+            }
+          } catch (e) {
+            console.warn(`[Spider] Error processing ${selector} element:`, e);
+          }
+        });
+      });
     }
     
-    // Filter out duplicates and short messages
-    const filteredMessages = [];
+    // Remove duplicates (same text, same role)
+    const uniqueMessages = [];
     const seenTexts = new Set();
     
     messages.forEach(msg => {
-      const text = msg.text.trim();
-      if (text.length > 10 && !seenTexts.has(text)) {
-        seenTexts.add(text);
-        filteredMessages.push(msg);
-      }
-    });
-    
-    console.log(`[Spider] Extracted ${filteredMessages.length} messages`);
-    return filteredMessages;
-  }
-  
-  function extractMessagesFallback() {
-    const messages = [];
-    
-    // Try to find message-like divs
-    const allDivs = document.querySelectorAll('div');
-    
-    allDivs.forEach(div => {
-      try {
-        const text = div.textContent?.trim() || div.innerText?.trim();
-        if (!text || text.length < 20 || text.length > 5000) return;
-        
-        // Skip UI elements
-        const skipPatterns = [
-          'ChatGPT', 'Model:', 'Upgrade', 'Share', 'Export',
-          'Copy', 'Regenerate', 'Continue', 'New Chat',
-          'Settings', 'Dark mode', 'Log out'
-        ];
-        
-        if (skipPatterns.some(pattern => text.includes(pattern))) return;
-        
-        // Determine role
-        let role = 'assistant';
-        if (div.closest('.items-end') || 
-            div.closest('[data-message-author-role="user"]') ||
-            text.includes('You:')) {
-          role = 'user';
-        }
-        
-        messages.push({
-          role: role,
-          text: text,
-          source: 'fallback'
-        });
-      } catch (e) {
-        // Skip errors
-      }
-    });
-    
-    // Remove duplicates
-    const uniqueMessages = [];
-    const seen = new Set();
-    
-    messages.forEach(msg => {
-      const key = msg.role + '|' + msg.text.substring(0, 100);
-      if (!seen.has(key)) {
-        seen.add(key);
+      const textKey = msg.role + '|' + msg.text.substring(0, 100).replace(/\s+/g, ' ');
+      if (!seenTexts.has(textKey)) {
+        seenTexts.add(textKey);
         uniqueMessages.push(msg);
       }
     });
     
+    console.log(`[Spider] Extracted ${uniqueMessages.length} unique messages`);
     return uniqueMessages;
   }
 })();

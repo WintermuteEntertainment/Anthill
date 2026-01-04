@@ -1,3 +1,5 @@
+# prepare_datasets_parallel.py
+
 import json
 import sys
 from pathlib import Path
@@ -27,26 +29,16 @@ def extract_pairs(conversation):
 
 
 def main(input_path, output_path):
-    # ✅ Use the arguments passed, not hardcoded paths!
     input_path = Path(input_path)
     output_path = Path(output_path)
-    
-    print(f"Processing: {input_path}")
-    print(f"Output to: {output_path}")
 
     with input_path.open("r", encoding="utf-8") as f:
         data = json.load(f)
 
     conversations = data.get("conversations", [])
-    print(f"Found {len(conversations)} conversations")
-    
     if not conversations:
         print("No conversations found.")
         return
-
-    # Count messages for debugging
-    total_messages = sum(len(c.get("messages", [])) for c in conversations)
-    print(f"Total messages: {total_messages}")
 
     with Pool(cpu_count()) as pool:
         results = pool.map(extract_pairs, conversations)
@@ -59,13 +51,11 @@ def main(input_path, output_path):
                 total += 1
 
     print(f"Wrote {total} instruction pairs → {output_path}")
-    return total
 
 
 if __name__ == "__main__":
     if len(sys.argv) != 3:
         print("Usage: prepare_datasets_parallel.py <input_json> <output_jsonl>")
-        print("Example: prepare_datasets_parallel.py chatgpt_conversations.json pairs.jsonl")
         sys.exit(1)
 
     main(sys.argv[1], sys.argv[2])

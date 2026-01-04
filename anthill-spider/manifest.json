@@ -34,12 +34,5 @@
   
   "action": {
     "default_popup": "popup.html"
-  },
-  
-  "web_accessible_resources": [
-    {
-      "resources": ["pipeline/*"],
-      "matches": ["<all_urls>"]
-    }
-  ]
+  }
 }
