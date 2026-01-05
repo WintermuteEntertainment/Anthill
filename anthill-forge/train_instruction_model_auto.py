@@ -17,7 +17,6 @@ import json
 # -----------------------------
 MODEL_NAME = "microsoft/phi-2"   # or your chosen instruction-tuned base
 DATA_FOLDER = Path("datasets/processed")
-#DATA_FOLDER = Path(r"\\BigBlackBox\AI_Stuff\datasets\processed")  # SMB path for Windows ---> to be changed once several datasets are actually in the location, empty ATM.
 OUTPUT_DIR = Path("model_out")
 MAX_LENGTH = 2048
 
