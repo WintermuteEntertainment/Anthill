@@ -2,8 +2,8 @@ import json
 import sys
 from pathlib import Path
 
-inp = Path(sys.argv[1])
-out = Path(sys.argv[2])
+inp = Path(r"X:\Anthill\Anthill\anthill-loom\datasets\processed\pairs_clean.jsonl")
+out = Path(r"X:\Anthill\Anthill\anthill-loom\datasets\processed\pairs_clean_and_extracted.jsonl")
 
 data = json.loads(inp.read_text(encoding="utf-8"))
 

@@ -1,5 +1,7 @@
-// Popup script for Anthill Spider
+// Popup script for Anthill Spider - Enhanced with Time Estimates
 let statusInterval = null;
+let sidebarScrolling = false;
+let loadingMessageInterval = null;
 
 document.addEventListener('DOMContentLoaded', () => {
   updateStatus();
@@ -7,6 +9,12 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('exportBtn').addEventListener('click', startExport);
   document.getElementById('stopBtn').addEventListener('click', stopScraping);
   document.getElementById('pipelineBtn').addEventListener('click', downloadPipeline);
+  
+  // Add event listener for loading message updates
+  document.getElementById('loadingMessage').addEventListener('click', () => {
+    // Optional: Click to show more info
+    console.log('Loading conversations from sidebar...');
+  });
 });
 
 async function startExport() {
@@ -27,7 +35,14 @@ async function startExport() {
     document.getElementById('exportBtn').style.display = 'none';
     document.getElementById('stopBtn').style.display = 'block';
     document.getElementById('progressContainer').style.display = 'block';
-    document.getElementById('statusText').textContent = 'Extracting conversations...';
+    
+    // Show loading container
+    document.getElementById('loadingContainer').style.display = 'block';
+    document.getElementById('statusText').textContent = 'Starting...';
+    sidebarScrolling = true;
+    
+    // Start animated loading message
+    startLoadingMessageAnimation();
     
     // Try to extract links with retry logic
     let response;
@@ -40,12 +55,16 @@ async function startExport() {
         
         if (response && response.ok) {
           console.log('Extract links successful:', response.conversations.length, 'conversations');
+          if (response.warning) {
+            console.warn('Sidebar scrolling warning:', response.warning);
+          }
           break;
         }
       } catch (error) {
         console.log(`Attempt ${i + 1} failed:`, error.message);
         if (i < retries - 1) {
-          // Wait before retrying
+          // Update loading message
+          document.getElementById('loadingMessage').textContent = `Retrying (${i + 1}/${retries})...`;
           await new Promise(resolve => setTimeout(resolve, 500));
         } else {
           throw new Error('Failed to extract conversations. Please refresh the ChatGPT page and try again.');
@@ -80,22 +99,49 @@ async function startExport() {
       throw new Error('No valid conversations found. Try scrolling the sidebar to load proper conversation titles.');
     }
     
-    // REMOVED THE 5-CONVERSATION LIMIT - NOW USING ALL CONVERSATIONS
+    // Use ALL conversations
     const conversationsToScrape = cleanConversations;
     
-    // Warning for large numbers of conversations
-    if (conversationsToScrape.length > 50) {
-      const proceed = confirm(`You are about to scrape ${conversationsToScrape.length} conversations. This will take approximately ${Math.ceil(conversationsToScrape.length * 0.5)} minutes. Continue?`);
-      if (!proceed) {
-        resetUI();
-        return;
+    // Hide loading container
+    sidebarScrolling = false;
+    stopLoadingMessageAnimation();
+    document.getElementById('loadingContainer').style.display = 'none';
+    
+    // Calculate time estimate
+    const avgTimePerConversation = 35; // seconds (conservative estimate)
+    const totalSeconds = conversationsToScrape.length * avgTimePerConversation;
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    
+    let timeEstimate;
+    if (minutes > 0) {
+      timeEstimate = `${minutes} minute${minutes > 1 ? 's' : ''}`;
+      if (seconds > 30) {
+        timeEstimate += ` ${seconds} seconds`;
       }
     } else {
-      const proceed = confirm(`Found ${conversationsToScrape.length} valid conversations. This will open each conversation in a new tab temporarily. DO NOT CLOSE CHROME during this process. Continue?`);
-      if (!proceed) {
-        resetUI();
-        return;
-      }
+      timeEstimate = `${seconds} seconds`;
+    }
+    
+    const totalScrapingTime = Math.ceil(totalSeconds / 60); // In minutes for display
+    
+    // Different messages based on conversation count
+    let confirmMessage;
+    if (conversationsToScrape.length > 100) {
+      confirmMessage = `Found ${conversationsToScrape.length} conversations. The scraping process will take approximately ${totalScrapingTime} minutes. This will open each conversation in a new tab temporarily. DO NOT CLOSE CHROME during this process. Continue?`;
+    } else if (conversationsToScrape.length > 50) {
+      confirmMessage = `Found ${conversationsToScrape.length} conversations. The scraping process will take approximately ${totalScrapingTime} minutes. This will open each conversation in a new tab temporarily. Continue?`;
+    } else if (conversationsToScrape.length > 20) {
+      confirmMessage = `Found ${conversationsToScrape.length} conversations. This will take approximately ${timeEstimate}. Each conversation will open in a new tab temporarily. Continue?`;
+    } else {
+      confirmMessage = `Found ${conversationsToScrape.length} conversations. This will take approximately ${timeEstimate}. Continue?`;
+    }
+    
+    const proceed = confirm(confirmMessage);
+    
+    if (!proceed) {
+      resetUI();
+      return;
     }
     
     document.getElementById('statusText').textContent = 'Starting scraping...';
@@ -142,6 +188,42 @@ async function startExport() {
   }
 }
 
+function startLoadingMessageAnimation() {
+  if (loadingMessageInterval) clearInterval(loadingMessageInterval);
+  
+  const messages = [
+    'Loading conversations from sidebar...',
+    'Scrolling to load all conversations...',
+    'Found more conversations...',
+    'Almost done loading...'
+  ];
+  
+  let messageIndex = 0;
+  let dotCount = 0;
+  
+  loadingMessageInterval = setInterval(() => {
+    const loadingMessage = document.getElementById('loadingMessage');
+    if (loadingMessage) {
+      // Rotate through messages every 5 seconds
+      if (dotCount === 0) {
+        messageIndex = (messageIndex + 1) % messages.length;
+      }
+      
+      // Add animated dots
+      const dots = '.'.repeat((dotCount % 3) + 1);
+      loadingMessage.textContent = `${messages[messageIndex]}${dots}`;
+      dotCount++;
+    }
+  }, 500);
+}
+
+function stopLoadingMessageAnimation() {
+  if (loadingMessageInterval) {
+    clearInterval(loadingMessageInterval);
+    loadingMessageInterval = null;
+  }
+}
+
 function stopScraping() {
   if (confirm('Stop scraping? This will cancel the current operation.')) {
     chrome.runtime.sendMessage({ action: 'stopScraping' });
@@ -169,12 +251,31 @@ async function updateStatus() {
       const progress = status.total > 0 ? (status.completed / status.total) * 100 : 0;
       document.getElementById('progressFill').style.width = `${progress}%`;
       
-      // Show more detailed status
-      let statusMessage = `Scraping... ${status.completed}/${status.total} conversations`;
-      if (status.failed > 0) {
-        statusMessage += ` (${status.failed} failed)`;
+      // Show different status if sidebar scrolling is happening
+      if (sidebarScrolling) {
+        // Keep loading animation running
+      } else {
+        let statusMessage = `Scraping... ${status.completed}/${status.total} conversations`;
+        if (status.failed > 0) {
+          statusMessage += ` (${status.failed} failed)`;
+        }
+        
+        // Add estimated time remaining
+        if (status.total > 0 && status.completed > 0) {
+          const avgTimePer = 35; // seconds
+          const remaining = status.total - status.completed;
+          const estSeconds = remaining * avgTimePer;
+          const estMinutes = Math.ceil(estSeconds / 60);
+          
+          if (estMinutes > 1) {
+            statusMessage += ` • ~${estMinutes} min remaining`;
+          } else if (estSeconds > 30) {
+            statusMessage += ` • ~${estSeconds} sec remaining`;
+          }
+        }
+        
+        document.getElementById('statusText').textContent = statusMessage;
       }
-      document.getElementById('statusText').textContent = statusMessage;
       
       document.getElementById('exportBtn').style.display = 'none';
       document.getElementById('stopBtn').style.display = 'block';
@@ -185,17 +286,17 @@ async function updateStatus() {
       }
       
       // If scraping just completed
-      if (status.completed + status.failed >= status.total && status.total > 0) {
+      if (status.completed + status.failed >= status.total && status.total > 0 && !sidebarScrolling) {
         setTimeout(() => {
-          const successMessage = `Scraping complete! ${status.completed} conversations saved, ${status.failed} failed. File should download automatically.`;
-          console.log(successMessage);
+          const successMessage = `✅ Scraped ${status.completed} conversations`;
+          const failedMessage = status.failed > 0 ? ` (${status.failed} failed)` : '';
           
-          // Show notification but don't block with alert during download
-          document.getElementById('statusText').textContent = successMessage;
+          document.getElementById('statusText').innerHTML = 
+            `<strong>${successMessage}${failedMessage}</strong><br>File should download automatically.`;
           
           setTimeout(() => {
             resetUI();
-          }, 5000);
+          }, 7000);
         }, 2000);
       }
     } else {
@@ -216,11 +317,16 @@ function startStatusUpdates() {
 }
 
 function resetUI() {
+  sidebarScrolling = false;
+  stopLoadingMessageAnimation();
+  
   document.getElementById('exportBtn').style.display = 'block';
   document.getElementById('stopBtn').style.display = 'none';
   document.getElementById('progressContainer').style.display = 'none';
+  document.getElementById('loadingContainer').style.display = 'none';
   document.getElementById('progressFill').style.width = '0%';
   document.getElementById('statusText').textContent = '';
+  document.getElementById('loadingMessage').textContent = 'Loading conversations from sidebar...';
   
   if (statusInterval) {
     clearInterval(statusInterval);

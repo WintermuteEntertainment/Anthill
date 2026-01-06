@@ -14,14 +14,24 @@
     console.log('[Spider] Received action:', request.action);
     
     if (request.action === 'extractLinks') {
-      try {
-        const conversations = extractConversationLinks();
-        sendResponse({ ok: true, conversations });
-      } catch (error) {
-        console.error('[Spider] Error extracting links:', error);
-        sendResponse({ ok: false, error: error.message });
-      }
-      return true;
+      // Use async function to handle the promise
+      (async () => {
+        try {
+          // First, scroll sidebar to load ALL conversations
+          await scrollSidebarToLoadAllConversations();
+          
+          // Now extract all conversations
+          const conversations = extractConversationLinks();
+          sendResponse({ ok: true, conversations });
+        } catch (error) {
+          console.error('[Spider] Error in extractLinks:', error);
+          // Still try to extract what we have
+          const conversations = extractConversationLinks();
+          sendResponse({ ok: true, conversations, warning: error.message });
+        }
+      })();
+      
+      return true; // Keep channel open for async response
     }
     
     if (request.action === 'scrapeThisPage') {
@@ -43,6 +53,214 @@
     sendResponse({ ok: false, error: 'Unknown action: ' + request.action });
     return true;
   });
+  
+  async function scrollSidebarToLoadAllConversations() {
+    console.log('[Spider] Scrolling sidebar to load ALL conversations...');
+    
+    const sidebar = findSidebar();
+    if (!sidebar) {
+      console.log('[Spider] No sidebar found, skipping scrolling');
+      return;
+    }
+    
+    let lastConversationCount = 0;
+    let currentConversationCount = 0;
+    let scrollAttempts = 0;
+    let noNewConversationsCount = 0;
+    const maxNoNewConversations = 3; // Stop after 3 attempts with no new conversations
+    let estimatedTotalConversations = 0;
+    
+    // Initial count
+    lastConversationCount = countConversationsInSidebar();
+    console.log(`[Spider] Initial conversation count: ${lastConversationCount}`);
+    
+    // Estimate total possible conversations based on scroll height
+    if (sidebar.scrollHeight > 0) {
+      const visibleConversations = lastConversationCount;
+      const visibleHeight = sidebar.clientHeight;
+      const totalHeight = sidebar.scrollHeight;
+      estimatedTotalConversations = Math.round((totalHeight / visibleHeight) * visibleConversations * 0.8);
+      console.log(`[Spider] Estimated total conversations: ${estimatedTotalConversations}`);
+    }
+    
+    // Keep scrolling until no new conversations load
+    while (noNewConversationsCount < maxNoNewConversations) {
+      scrollAttempts++;
+      
+      // Scroll the sidebar
+      const scrollResult = scrollSidebar(sidebar);
+      if (!scrollResult) {
+        console.log('[Spider] Cannot scroll sidebar further');
+        break;
+      }
+      
+      // Wait for new content to load
+      // Dynamic wait time: longer if we're loading many conversations
+      const baseWaitTime = 1500;
+      const extraWait = scrollAttempts < 10 ? 1000 : 500;
+      const waitTime = baseWaitTime + extraWait;
+      
+      console.log(`[Spider] Waiting ${waitTime}ms for new conversations to load (attempt ${scrollAttempts})...`);
+      await new Promise(resolve => setTimeout(resolve, waitTime));
+      
+      // Count current conversations
+      currentConversationCount = countConversationsInSidebar();
+      console.log(`[Spider] After scroll ${scrollAttempts}: ${currentConversationCount} conversations`);
+      
+      // Check if we got new conversations
+      if (currentConversationCount > lastConversationCount) {
+        const newConvos = currentConversationCount - lastConversationCount;
+        console.log(`[Spider] Loaded ${newConvos} new conversations!`);
+        lastConversationCount = currentConversationCount;
+        noNewConversationsCount = 0; // Reset counter
+        
+        // Update estimated time in console
+        const estimatedTime = Math.round((scrollAttempts * waitTime) / 1000);
+        console.log(`[Spider] Progress: ${lastConversationCount} conversations loaded in ${estimatedTime}s`);
+      } else {
+        noNewConversationsCount++;
+        console.log(`[Spider] No new conversations (attempt ${noNewConversationsCount}/${maxNoNewConversations})`);
+        
+        // Try alternative scrolling strategies
+        if (noNewConversationsCount === 1) {
+          console.log('[Spider] Trying alternative scroll strategies...');
+          
+          // Strategy 1: Scroll to different positions
+          sidebar.scrollTop = sidebar.scrollHeight * 0.3;
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          
+          sidebar.scrollTop = sidebar.scrollHeight * 0.6;
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          
+          // Strategy 2: Scroll by smaller increments
+          const smallScrollHeight = sidebar.clientHeight * 0.3;
+          for (let i = 0; i < 3; i++) {
+            sidebar.scrollTop = Math.min(
+              sidebar.scrollTop + smallScrollHeight,
+              sidebar.scrollHeight
+            );
+            await new Promise(resolve => setTimeout(resolve, 800));
+          }
+          
+          // Re-count after alternative scrolling
+          currentConversationCount = countConversationsInSidebar();
+          if (currentConversationCount > lastConversationCount) {
+            console.log(`[Spider] Alternative strategy loaded ${currentConversationCount - lastConversationCount} new conversations!`);
+            lastConversationCount = currentConversationCount;
+            noNewConversationsCount = 0;
+            continue;
+          }
+        }
+      }
+      
+      // Check if we've reached the bottom
+      const isAtBottom = Math.abs(sidebar.scrollHeight - sidebar.scrollTop - sidebar.clientHeight) < 10;
+      if (isAtBottom && noNewConversationsCount >= 1) {
+        console.log('[Spider] Reached bottom of sidebar');
+        break;
+      }
+      
+      // Safety: If we're stuck in an infinite loop, break after 1000 attempts (unlikely)
+      if (scrollAttempts > 1000) {
+        console.warn('[Spider] Safety break after 1000 scroll attempts');
+        break;
+      }
+    }
+    
+    console.log(`[Spider] Finished scrolling. Total conversations loaded: ${lastConversationCount}`);
+    console.log(`[Spider] Total scroll attempts: ${scrollAttempts}`);
+    
+    // One final wait to ensure all content is loaded
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    return lastConversationCount;
+  }
+  
+  function findSidebar() {
+    // Try multiple selectors for the sidebar
+    const selectors = [
+      'nav',
+      'aside',
+      '[role="navigation"]',
+      '[data-testid="conversation-list"]',
+      '[class*="sidebar"]',
+      '[class*="Sidebar"]',
+      'div[class*="flex-col"]',
+      'div[class*="overflow-y-auto"]',
+      'div[class*="scrollable"]',
+      'div[class*="conversation"]',
+      'div[data-radix-scroll-area-viewport]', // ChatGPT sometimes uses this
+      'div[class*="react-scroll-to-bottom"]'
+    ];
+    
+    for (const selector of selectors) {
+      const elements = document.querySelectorAll(selector);
+      for (const element of elements) {
+        // Check if it looks like a sidebar (has scrollable content and is on the side)
+        const hasScroll = element.scrollHeight > element.clientHeight;
+        const isOnSide = element.getBoundingClientRect().left < 300; // Assuming sidebar is on the left
+        
+        if (hasScroll && isOnSide && element.clientHeight > 300) {
+          console.log(`[Spider] Found sidebar with selector: ${selector}`);
+          return element;
+        }
+      }
+    }
+    
+    console.log('[Spider] No sidebar found with standard selectors, trying fallback...');
+    
+    // Fallback: Find any scrollable container with conversation links
+    const allElements = document.querySelectorAll('*');
+    for (const element of allElements) {
+      if (element.scrollHeight > element.clientHeight + 100) {
+        // Check if it contains conversation links
+        const hasConversationLinks = element.querySelectorAll('a[href^="/c/"]').length > 0;
+        if (hasConversationLinks) {
+          console.log('[Spider] Found sidebar via fallback (contains conversation links)');
+          return element;
+        }
+      }
+    }
+    
+    return null;
+  }
+  
+  function scrollSidebar(sidebar) {
+    // Check if we can scroll further
+    const canScroll = sidebar.scrollHeight > sidebar.clientHeight;
+    const isAtBottom = Math.abs(sidebar.scrollHeight - sidebar.scrollTop - sidebar.clientHeight) < 10;
+    
+    if (!canScroll || isAtBottom) {
+      return false;
+    }
+    
+    // Save current position
+    const previousScrollTop = sidebar.scrollTop;
+    
+    // Scroll by 80% of the viewport height
+    const scrollAmount = sidebar.clientHeight * 0.8;
+    const targetScroll = Math.min(previousScrollTop + scrollAmount, sidebar.scrollHeight);
+    
+    sidebar.scrollTop = targetScroll;
+    
+    console.log(`[Spider] Scrolled sidebar from ${previousScrollTop} to ${targetScroll}`);
+    return true;
+  }
+  
+  function countConversationsInSidebar() {
+    // Count unique conversation links in the entire document
+    const anchors = document.querySelectorAll('a[href^="/c/"]');
+    const seen = new Set();
+    
+    anchors.forEach(a => {
+      const href = a.getAttribute('href');
+      if (href) {
+        seen.add(href);
+      }
+    });
+    
+    return seen.size;
+  }
   
   function extractConversationLinks() {
     try {

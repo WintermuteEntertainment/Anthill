@@ -21,7 +21,7 @@ echo Latest file: %LATEST_FILE%
 echo.
 
 REM Set paths
-set "INPUT_FILE=C:\Users\twwca\Downloads\%LATEST_FILE%"
+set "INPUT_FILE=C:\Users\twwca\Downloads\chatgpt_conversations_latest.json"
 set "OUTPUT_DIR=X:\Anthill\Anthill\anthill-loom\datasets\processed"
 set "OUTPUT_FILE=%OUTPUT_DIR%\pairs_%date:~-4,4%%date:~-7,2%%date:~-10,2%.jsonl"
 
