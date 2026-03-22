@@ -1,18 +1,22 @@
 {
   "manifest_version": 3,
-  "name": "Anthill Spider",
-  "version": "2.0.0",
-  "description": "Export ChatGPT conversations with pause/resume, partial saves, and single-conversation export.",
+  "name": "Anthill Collector",
+  "version": "1.0.0",
+  "description": "Extract and download images from ChatGPT conversations — DALL-E, uploads, charts, and more.",
   "permissions": [
     "activeTab",
     "scripting",
     "storage",
+    "unlimitedStorage",
     "downloads",
     "tabs"
   ],
   "host_permissions": [
     "https://chatgpt.com/*",
-    "https://chat.openai.com/*"
+    "https://chat.openai.com/*",
+    "https://*.blob.core.windows.net/*",
+    "https://*.oaiusercontent.com/*",
+    "https://*.openai.com/*"
   ],
   "background": {
     "service_worker": "background.js"

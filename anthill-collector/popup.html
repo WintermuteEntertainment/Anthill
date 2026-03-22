@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Anthill Collector</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      width: 520px;
+      background: linear-gradient(135deg, #2d1b69 0%, #11998e 100%);
+      color: white;
+      min-height: 300px;
+    }
+
+    .container {
+      background: rgba(255, 255, 255, 0.08);
+      backdrop-filter: blur(10px);
+      margin: 10px;
+      border-radius: 12px;
+      padding: 14px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+    }
+
+    h2 {
+      font-size: 17px; font-weight: 700;
+      text-align: center; margin-bottom: 12px;
+    }
+
+    /* ─── Buttons ─── */
+    button {
+      padding: 9px 14px;
+      border: none; border-radius: 8px;
+      font-weight: 600; font-size: 12px;
+      cursor: pointer;
+      transition: all 0.15s;
+      display: inline-flex; align-items: center; justify-content: center; gap: 5px;
+    }
+    button:hover { transform: translateY(-1px); }
+    button:active { transform: translateY(0); }
+    button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+    .btn-full { width: 100%; margin: 4px 0; }
+    .btn-green { background: linear-gradient(135deg, #4CAF50, #45a049); color: white; }
+    .btn-blue { background: linear-gradient(135deg, #2196F3, #1976D2); color: white; }
+    .btn-teal { background: linear-gradient(135deg, #11998e, #0d7a6e); color: white; }
+    .btn-orange { background: linear-gradient(135deg, #FF9800, #F57C00); color: white; }
+    .btn-red { background: linear-gradient(135deg, #f44336, #d32f2f); color: white; }
+    .btn-outline {
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      color: white;
+    }
+    .btn-outline:hover { background: rgba(255, 255, 255, 0.18); }
+
+    .btn-row { display: flex; gap: 6px; margin: 6px 0; }
+    .btn-row button { flex: 1; }
+
+    /* ─── Cards ─── */
+    .card {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      padding: 10px;
+      margin-bottom: 8px;
+    }
+    .card-label {
+      font-size: 10px; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.5px;
+      opacity: 0.6; margin-bottom: 5px;
+    }
+
+    /* ─── Input ─── */
+    .input-row {
+      display: flex; gap: 8px; align-items: center;
+      margin-bottom: 5px;
+    }
+    .input-row label { font-size: 12px; white-space: nowrap; }
+    input[type="number"] {
+      padding: 7px 10px;
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.1);
+      color: white; font-size: 12px; outline: none;
+      max-width: 70px; text-align: center;
+    }
+    input[type="number"]:focus { border-color: rgba(255, 255, 255, 0.5); }
+    .input-hint { font-size: 10px; opacity: 0.5; }
+
+    /* ─── Progress ─── */
+    .progress-bar {
+      height: 5px;
+      background: rgba(255, 255, 255, 0.12);
+      border-radius: 3px; overflow: hidden;
+      margin: 6px 0;
+    }
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #11998e, #4CAF50);
+      width: 0%; transition: width 0.4s; border-radius: 3px;
+    }
+    .status-text {
+      font-size: 11px; opacity: 0.8; text-align: center;
+      min-height: 15px;
+    }
+    .stats-row {
+      display: flex; justify-content: space-between;
+      font-size: 10px; opacity: 0.6; margin-top: 3px;
+    }
+
+    /* ─── Info boxes ─── */
+    .info {
+      background: rgba(33, 150, 243, 0.12);
+      border-left: 3px solid #2196f3;
+      padding: 7px 9px; margin: 6px 0;
+      border-radius: 4px; font-size: 11px; line-height: 1.4;
+    }
+    .warning {
+      background: rgba(255, 193, 7, 0.12);
+      border-left: 3px solid #ffc107;
+      padding: 7px 9px; margin: 6px 0;
+      border-radius: 4px; font-size: 11px;
+    }
+    .success {
+      background: rgba(76, 175, 80, 0.12);
+      border-left: 3px solid #4caf50;
+      padding: 7px 9px; margin: 6px 0;
+      border-radius: 4px; font-size: 11px;
+    }
+
+    /* ─── Resume banner ─── */
+    .resume-banner {
+      background: rgba(255, 152, 0, 0.15);
+      border: 1px solid rgba(255, 152, 0, 0.35);
+      border-radius: 8px; padding: 10px;
+      margin-bottom: 8px; text-align: center;
+      font-size: 12px;
+    }
+    .resume-banner p { margin-bottom: 6px; }
+
+    /* ─── Discovery status ─── */
+    .discovery-scanning {
+      font-size: 11px; opacity: 0.7;
+      text-align: center; padding: 4px 0;
+      min-height: 18px;
+    }
+
+    /* ═══ IMAGE GALLERY ═══ */
+    .gallery-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 6px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      margin-bottom: 8px;
+    }
+    .gallery-header .count {
+      font-size: 13px; font-weight: 700;
+    }
+    .gallery-header .actions {
+      display: flex; gap: 4px;
+    }
+    .gallery-header button {
+      padding: 5px 10px; font-size: 11px;
+    }
+
+    .gallery-filters {
+      display: flex; gap: 4px; flex-wrap: wrap;
+      margin-bottom: 8px;
+    }
+    .filter-chip {
+      padding: 3px 10px;
+      border-radius: 12px; font-size: 10px; font-weight: 600;
+      cursor: pointer; transition: all 0.15s;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      background: rgba(255, 255, 255, 0.05);
+      color: rgba(255, 255, 255, 0.7);
+    }
+    .filter-chip:hover { background: rgba(255, 255, 255, 0.12); }
+    .filter-chip.active {
+      background: rgba(17, 153, 142, 0.4);
+      border-color: #11998e;
+      color: white;
+    }
+    .filter-chip .chip-count {
+      opacity: 0.6; margin-left: 3px;
+    }
+
+    .gallery-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+      gap: 6px;
+      max-height: 360px;
+      overflow-y: auto;
+      padding: 2px;
+    }
+    .gallery-grid::-webkit-scrollbar { width: 5px; }
+    .gallery-grid::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 3px; }
+
+    .thumb {
+      position: relative;
+      border-radius: 6px;
+      overflow: hidden;
+      border: 2px solid transparent;
+      cursor: pointer;
+      transition: all 0.15s;
+      aspect-ratio: 1;
+      background: rgba(0, 0, 0, 0.3);
+    }
+    .thumb:hover { border-color: rgba(255, 255, 255, 0.4); transform: scale(1.03); }
+    .thumb.selected { border-color: #11998e; box-shadow: 0 0 0 1px #11998e; }
+
+    .thumb img {
+      width: 100%; height: 100%;
+      object-fit: cover; display: block;
+    }
+
+    .thumb .badge {
+      position: absolute; bottom: 3px; left: 3px;
+      padding: 1px 6px; border-radius: 8px;
+      font-size: 9px; font-weight: 700;
+      background: rgba(0, 0, 0, 0.7);
+      color: white; text-transform: uppercase;
+    }
+    .badge-dalle { background: rgba(233, 30, 99, 0.85); }
+    .badge-upload { background: rgba(33, 150, 243, 0.85); }
+    .badge-chart { background: rgba(255, 152, 0, 0.85); }
+    .badge-generated { background: rgba(156, 39, 176, 0.85); }
+
+    .thumb .check {
+      position: absolute; top: 3px; right: 3px;
+      width: 18px; height: 18px; border-radius: 50%;
+      border: 2px solid rgba(255, 255, 255, 0.5);
+      background: rgba(0, 0, 0, 0.4);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px; color: transparent;
+      transition: all 0.15s;
+    }
+    .thumb.selected .check {
+      background: #11998e; border-color: #11998e;
+      color: white;
+    }
+
+    .thumb .conv-label {
+      position: absolute; top: 3px; left: 3px; right: 28px;
+      font-size: 8px; color: rgba(255,255,255,0.8);
+      background: rgba(0,0,0,0.5);
+      padding: 1px 4px; border-radius: 3px;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      display: none;
+    }
+    .thumb:hover .conv-label { display: block; }
+
+    .thumb .dl-badge {
+      position: absolute; bottom: 3px; right: 3px;
+      font-size: 10px; line-height: 1;
+    }
+
+    .empty-gallery {
+      text-align: center; padding: 30px 10px;
+      opacity: 0.5; font-size: 13px;
+    }
+
+    /* ─── Lightbox ─── */
+    .lightbox {
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0, 0, 0, 0.9); z-index: 1000;
+      display: flex; align-items: center; justify-content: center;
+      flex-direction: column; cursor: pointer;
+    }
+    .lightbox img {
+      max-width: 95%; max-height: 80%;
+      border-radius: 8px; box-shadow: 0 4px 30px rgba(0,0,0,0.5);
+    }
+    .lightbox .lb-info {
+      margin-top: 10px; font-size: 12px; opacity: 0.7;
+      text-align: center; max-width: 90%;
+    }
+    .lightbox .lb-close {
+      position: absolute; top: 8px; right: 12px;
+      font-size: 24px; color: white; cursor: pointer;
+      opacity: 0.7; transition: opacity 0.15s;
+    }
+    .lightbox .lb-close:hover { opacity: 1; }
+
+    /* ─── Spinner ─── */
+    .spinner {
+      display: inline-block;
+      width: 14px; height: 14px;
+      border: 2px solid rgba(255, 255, 255, 0.2);
+      border-radius: 50%; border-top-color: #4CAF50;
+      animation: spin 0.8s ease-in-out infinite;
+      vertical-align: middle;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .hidden { display: none !important; }
+    .mt-4 { margin-top: 4px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>&#x1F5BC; Anthill Collector</h2>
+
+    <!-- ═══ Resume Banner ═══ -->
+    <div id="resumeBanner" class="resume-banner hidden">
+      <p><strong>Interrupted session found!</strong></p>
+      <p id="resumeInfo"></p>
+      <div class="btn-row">
+        <button class="btn-orange" id="resumeBtn">&#9654; Resume</button>
+        <button class="btn-outline" id="discardBtn">Discard</button>
+      </div>
+    </div>
+
+    <!-- ═══ Controls Panel ═══ -->
+    <div id="controlsPanel">
+      <div class="card">
+        <div class="card-label">Current Page</div>
+        <button class="btn-teal btn-full" id="scanPageBtn">&#x1F50D; Scan This Conversation</button>
+      </div>
+
+      <div class="card">
+        <div class="card-label">Batch Scan</div>
+        <div class="input-row">
+          <label>Conversations:</label>
+          <input type="number" id="limitInput" min="0" max="9999" value="0" placeholder="0">
+          <span class="input-hint">(0 = all)</span>
+        </div>
+        <div class="btn-row">
+          <button class="btn-blue" id="findAllBtn">&#x1F50D; Find All</button>
+          <button class="btn-green" id="batchBtn">&#x1F680; Batch Scan</button>
+        </div>
+        <div id="discoveryScanStatus" class="discovery-scanning hidden"></div>
+      </div>
+    </div>
+
+    <!-- ═══ Scanning Progress ═══ -->
+    <div id="progressPanel" class="hidden">
+      <div class="card">
+        <div id="scanLabel" class="card-label">Scanning...</div>
+        <div class="progress-bar">
+          <div id="progressFill" class="progress-fill"></div>
+        </div>
+        <div id="statusText" class="status-text">Starting...</div>
+        <div class="stats-row">
+          <span id="statsDone">Scanned: 0</span>
+          <span id="statsImages">Images: 0</span>
+          <span id="statsFailed">Failed: 0</span>
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="btn-orange" id="pauseBtn">&#10074;&#10074; Pause</button>
+        <button class="btn-green hidden" id="resumeScanBtn">&#9654; Resume</button>
+        <button class="btn-red" id="stopBtn">&#9632; Stop</button>
+      </div>
+    </div>
+
+    <!-- ═══ Image Gallery ═══ -->
+    <div id="galleryPanel" class="hidden">
+      <div class="gallery-header">
+        <span class="count" id="galleryCount">0 images</span>
+        <div class="actions">
+          <button class="btn-outline" id="selectAllBtn">Select All</button>
+          <button class="btn-teal" id="downloadSelBtn" disabled>&#11015; Download</button>
+        </div>
+      </div>
+
+      <div class="gallery-filters" id="galleryFilters"></div>
+
+      <div class="gallery-grid" id="galleryGrid">
+        <div class="empty-gallery">No images found yet</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Lightbox -->
+  <div id="lightbox" class="lightbox hidden">
+    <span class="lb-close" id="lbClose">&times;</span>
+    <img id="lbImg" src="">
+    <div class="lb-info" id="lbInfo"></div>
+  </div>
+
+  <script src="jszip.min.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>
