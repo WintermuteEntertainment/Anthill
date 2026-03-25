@@ -10,7 +10,7 @@
   console.log('[Spider] Content script loaded at', new Date().toISOString());
   
   // Message listener
-  chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  ext.runtime.onMessage.addListener((request, sender, sendResponse) => {
     console.log('[Spider] Received action:', request.action);
     
     if (request.action === 'extractLinks') {

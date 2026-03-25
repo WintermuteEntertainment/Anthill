@@ -22,7 +22,7 @@ async function startExport() {
     console.log('Starting export...');
     
     // Get current tab
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    const [tab] = await ext.tabs.query({ active: true, currentWindow: true });
     console.log('Current tab:', tab.id, tab.url);
     
     // Check if we're on ChatGPT
@@ -51,7 +51,7 @@ async function startExport() {
     for (let i = 0; i < retries; i++) {
       try {
         console.log(`Attempt ${i + 1} to extract links...`);
-        response = await chrome.tabs.sendMessage(tab.id, { action: 'extractLinks' });
+        response = await ext.tabs.sendMessage(tab.id, { action: 'extractLinks' });
         
         if (response && response.ok) {
           console.log('Extract links successful:', response.conversations.length, 'conversations');
@@ -156,11 +156,11 @@ async function startExport() {
           reject(new Error('Background script timeout'));
         }, timeout);
         
-        chrome.runtime.sendMessage(message, (response) => {
+        ext.runtime.sendMessage(message, (response) => {
           clearTimeout(timer);
           
-          if (chrome.runtime.lastError) {
-            reject(new Error(chrome.runtime.lastError.message));
+          if (ext.runtime.lastError) {
+            reject(new Error(ext.runtime.lastError.message));
           } else {
             resolve(response);
           }
@@ -226,21 +226,21 @@ function stopLoadingMessageAnimation() {
 
 function stopScraping() {
   if (confirm('Stop scraping? This will cancel the current operation.')) {
-    chrome.runtime.sendMessage({ action: 'stopScraping' });
+    ext.runtime.sendMessage({ action: 'stopScraping' });
     resetUI();
   }
 }
 
 function downloadPipeline() {
-  chrome.runtime.sendMessage({ action: 'downloadPipeline' });
+  ext.runtime.sendMessage({ action: 'downloadPipeline' });
 }
 
 async function updateStatus() {
   try {
     const status = await new Promise((resolve, reject) => {
-      chrome.runtime.sendMessage({ action: 'getStatus' }, (response) => {
-        if (chrome.runtime.lastError) {
-          reject(chrome.runtime.lastError);
+      ext.runtime.sendMessage({ action: 'getStatus' }, (response) => {
+        if (ext.runtime.lastError) {
+          reject(ext.runtime.lastError);
         } else {
           resolve(response);
         }

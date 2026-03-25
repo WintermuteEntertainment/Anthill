@@ -1,0 +1,52 @@
+{
+  "manifest_version": 3,
+  "name": "Anthill – ChatGPT Scraper",
+  "version": "1.0.0",
+  "description": "Scrape ChatGPT conversations for Anthill analysis.",
+
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "anthill@yourdomain.local",
+      "strict_min_version": "109.0",
+      "data_collection_permissions": {
+        "required": [
+          "websiteContent"
+        ],
+        "requires_user_consent": true,
+        "purpose": "No data is collected or ever leaves your local computer.",
+        "policy_url": "https://sites.google.com/timcase.info/privacy-policy-for-anthill-spi/home"
+    }
+    }
+  },
+
+  "permissions": [
+    "storage",
+    "activeTab",
+    "scripting"
+  ],
+
+  "host_permissions": [
+    "https://chat.openai.com/*",
+    "https://chatgpt.com/*"
+  ],
+
+  "background": {
+    "scripts": [ "background.js" ]
+  },
+
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Anthill"
+  },
+
+  "content_scripts": [
+    {
+      "matches": [
+        "https://chat.openai.com/*",
+        "https://chatgpt.com/*"
+      ],
+      "js": [ "content.js" ],
+      "run_at": "document_idle"
+    }
+  ]
+}

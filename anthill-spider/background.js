@@ -21,7 +21,7 @@ let keepAliveInterval = setInterval(() => {
 }, 20000);
 
 // Listen for messages
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+ext.runtime.onMessage.addListener((message, sender, sendResponse) => {
   console.log('[Background] Received message:', message.action);
   
   try {
@@ -87,7 +87,7 @@ function startScraping(conversations) {
   };
   
   // Save to storage
-  chrome.storage.local.set({ scrapingSession });
+  ext.storage.local.set({ scrapingSession });
   
   // Start processing first conversation
   processNextConversation();
@@ -126,14 +126,14 @@ function processNextConversation() {
   console.log(`[Background] Processing ${scrapingSession.currentIndex + 1}/${scrapingSession.total}: ${conversation.title}`);
   
   // Create a new tab for this conversation
-  chrome.tabs.create({
+  ext.tabs.create({
     url: conversation.url,
     active: false
   }, (tab) => {
     console.log(`[Background] Tab created: ${tab.id} for ${conversation.title}`);
     
     scrapingSession.processingTab = tab.id;
-    chrome.storage.local.set({ scrapingSession });
+    ext.storage.local.set({ scrapingSession });
     
     // Listen for tab load
     const tabLoadListener = (tabId, changeInfo) => {
@@ -141,7 +141,7 @@ function processNextConversation() {
         // Clear the tab timeout since page loaded successfully
         clearTabTimeout(tab.id);
         
-        chrome.tabs.onUpdated.removeListener(tabLoadListener);
+        ext.tabs.onUpdated.removeListener(tabLoadListener);
         
         console.log(`[Background] Tab ${tab.id} loaded, waiting for content...`);
         
@@ -164,12 +164,12 @@ function processNextConversation() {
               // Now scrape the page
               console.log(`[Background] Sending scrape message to tab ${tab.id}`);
               
-              chrome.tabs.sendMessage(tab.id, {
+              ext.tabs.sendMessage(tab.id, {
                 action: 'scrapeThisPage',
                 conversation: conversation
               }, (response) => {
-                if (chrome.runtime.lastError) {
-                  console.error(`[Background] Error sending message to tab ${tab.id}:`, chrome.runtime.lastError);
+                if (ext.runtime.lastError) {
+                  console.error(`[Background] Error sending message to tab ${tab.id}:`, ext.runtime.lastError);
                   handleScrapingFailed();
                 } else if (response && response.ok) {
                   console.log(`[Background] Successfully scraped: ${conversation.title}`);
@@ -192,12 +192,12 @@ function processNextConversation() {
       }
     };
     
-    chrome.tabs.onUpdated.addListener(tabLoadListener);
+    ext.tabs.onUpdated.addListener(tabLoadListener);
     
     // Set timeout for this tab (45 seconds total)
     const tabTimeout = setTimeout(() => {
       console.error(`[Background] Timeout loading tab for: ${conversation.title}`);
-      chrome.tabs.onUpdated.removeListener(tabLoadListener);
+      ext.tabs.onUpdated.removeListener(tabLoadListener);
       handleScrapingFailed();
       cleanupTabAndContinue(tab.id, tabLoadListener);
     }, 45000); // 45 seconds total timeout
@@ -216,12 +216,12 @@ function cleanupTabAndContinue(tabId, tabLoadListener) {
   
   // Remove the load listener if it's still attached
   if (tabLoadListener) {
-    chrome.tabs.onUpdated.removeListener(tabLoadListener);
+    ext.tabs.onUpdated.removeListener(tabLoadListener);
   }
   
   // Close the tab
-  chrome.tabs.remove(tabId, () => {
-    if (chrome.runtime.lastError) {
+  ext.tabs.remove(tabId, () => {
+    if (ext.runtime.lastError) {
       console.log(`[Background] Tab ${tabId} already closed or doesn't exist`);
     }
     
@@ -230,7 +230,7 @@ function cleanupTabAndContinue(tabId, tabLoadListener) {
     
     // Move to next conversation
     scrapingSession.currentIndex++;
-    chrome.storage.local.set({ scrapingSession });
+    ext.storage.local.set({ scrapingSession });
     
     // Wait a moment, then process next
     setTimeout(() => {
@@ -255,14 +255,14 @@ function handleScrapedConversation(data) {
   scrapingSession.conversations.push(data);
   
   // Update storage
-  chrome.storage.local.set({ scrapingSession });
+  ext.storage.local.set({ scrapingSession });
   
   console.log(`[Background] Progress: ${scrapingSession.completed}/${scrapingSession.total}`);
 }
 
 function handleScrapingFailed() {
   scrapingSession.failed++;
-  chrome.storage.local.set({ scrapingSession });
+  ext.storage.local.set({ scrapingSession });
   console.log(`[Background] Failed count: ${scrapingSession.failed}/${scrapingSession.total}`);
 }
 
@@ -331,8 +331,8 @@ function completeScraping() {
       filename: filename,
       saveAs: true
     }, (downloadId) => {
-      if (chrome.runtime.lastError) {
-        console.error('[Background] Download failed:', chrome.runtime.lastError);
+      if (ext.runtime.lastError) {
+        console.error('[Background] Download failed:', ext.runtime.lastError);
       } else {
         console.log(`[Background] Download started: ${filename} (ID: ${downloadId})`);
         console.log(`[Background] File contains ${scrapingSession.conversations.length} conversations`);
@@ -340,7 +340,7 @@ function completeScraping() {
       
       // Clean up storage after download
       setTimeout(() => {
-        chrome.storage.local.remove(['scrapingSession']);
+        ext.storage.local.remove(['scrapingSession']);
         console.log('[Background] Cleaned up storage');
       }, 5000);
     });
@@ -351,7 +351,7 @@ function completeScraping() {
 
 function stopScraping() {
   scrapingSession.isActive = false;
-  chrome.storage.local.set({ scrapingSession });
+  ext.storage.local.set({ scrapingSession });
   console.log('[Background] Scraping stopped by user');
   
   // Clean up active timers
@@ -360,14 +360,14 @@ function stopScraping() {
       clearTimeout(timerData.tabTimeout);
     }
     if (timerData.tabLoadListener) {
-      chrome.tabs.onUpdated.removeListener(timerData.tabLoadListener);
+      ext.tabs.onUpdated.removeListener(timerData.tabLoadListener);
     }
   });
   activeTimers.clear();
   
   // Close any open tab
   if (scrapingSession.processingTab) {
-    chrome.tabs.remove(scrapingSession.processingTab, () => {
+    ext.tabs.remove(scrapingSession.processingTab, () => {
       console.log(`[Background] Closed processing tab ${scrapingSession.processingTab}`);
       scrapingSession.processingTab = null;
     });
@@ -376,12 +376,12 @@ function stopScraping() {
 
 function downloadPipeline() {
   chrome.downloads.download({
-    url: chrome.runtime.getURL('pipeline/anthill_loom_pipeline.zip'),
+    url: ext.runtime.getURL('pipeline/anthill_loom_pipeline.zip'),
     filename: 'anthill_loom_pipeline.zip',
     saveAs: true
   }, (downloadId) => {
-    if (chrome.runtime.lastError) {
-      console.error('[Background] Pipeline download failed:', chrome.runtime.lastError);
+    if (ext.runtime.lastError) {
+      console.error('[Background] Pipeline download failed:', ext.runtime.lastError);
     } else {
       console.log(`[Background] Pipeline download started with ID: ${downloadId}`);
     }
@@ -389,7 +389,7 @@ function downloadPipeline() {
 }
 
 // Load saved session on startup
-chrome.storage.local.get(['scrapingSession'], (result) => {
+ext.storage.local.get(['scrapingSession'], (result) => {
   if (result.scrapingSession) {
     scrapingSession = result.scrapingSession;
     console.log('[Background] Loaded previous scraping session');
@@ -397,7 +397,7 @@ chrome.storage.local.get(['scrapingSession'], (result) => {
 });
 
 // Clean up on unload
-chrome.runtime.onSuspend.addListener(() => {
+ext.runtime.onSuspend.addListener(() => {
   console.log('[Background] Service worker is being suspended');
   clearInterval(keepAliveInterval);
   
