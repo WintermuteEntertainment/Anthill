@@ -21,27 +21,56 @@ echo Latest file: %LATEST_FILE%
 echo.
 
 REM Set paths
-set "INPUT_FILE=C:\Users\twwca\Downloads\chatgpt_conversations_latest.json"
-set "OUTPUT_DIR=X:\Anthill\Anthill\anthill-loom\datasets\processed"
-set "OUTPUT_FILE=%OUTPUT_DIR%\pairs_%date:~-4,4%%date:~-7,2%%date:~-10,2%.jsonl"
+set "INPUT_FILE=C:\Users\twwca\Downloads\%LATEST_FILE%"
+set "OUTPUT_DIR=..\datasets\processed"
 
 REM Create output directory if it doesn't exist
 if not exist "%OUTPUT_DIR%" mkdir "%OUTPUT_DIR%"
 
+REM Generate unique output filenames so we never overwrite previous runs
+set RAW_OUT=%OUTPUT_DIR%\pairs.jsonl
+set CLEAN_OUT=%OUTPUT_DIR%\pairs_clean.jsonl
+set /a N=2
+:check_exists
+if exist "%RAW_OUT%" (
+    set RAW_OUT=%OUTPUT_DIR%\pairs_%N%.jsonl
+    set CLEAN_OUT=%OUTPUT_DIR%\pairs_clean_%N%.jsonl
+    set /a N+=1
+    goto :check_exists
+)
+
 echo Processing: %INPUT_FILE%
-echo Output: %OUTPUT_FILE%
+echo Output: %CLEAN_OUT%
 echo.
 
-REM Run the Python script
-python prepare_datasets_parallel.py "%INPUT_FILE%" "%OUTPUT_FILE%"
+REM Step 1: Extract pairs
+echo Step 1: Extracting prompt/completion pairs...
+python prepare_datasets_parallel.py "%INPUT_FILE%" "%RAW_OUT%"
 
 if errorlevel 1 (
     echo.
-    echo Pipeline FAILED.
-) else (
-    echo.
-    echo Pipeline COMPLETE.
+    echo [ERROR] Extraction failed.
+    pause
+    exit /b 1
 )
 
+REM Step 2: Deduplicate and clean
+echo.
+echo Step 2: Deduplicating and filtering...
+python dedupe_and_filter.py "%RAW_OUT%" "%CLEAN_OUT%"
+
+if errorlevel 1 (
+    echo.
+    echo [ERROR] Deduplication failed.
+    pause
+    exit /b 1
+)
+
+echo.
+echo [OK] Pipeline complete!
+echo Raw pairs: %RAW_OUT%
+echo Cleaned pairs: %CLEAN_OUT%
+echo.
+echo Next: Run training in anthill-forge directory.
 echo.
 pause

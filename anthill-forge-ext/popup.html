@@ -1,0 +1,761 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Anthill Forge</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      width: 420px;
+      background: linear-gradient(135deg, #92400e 0%, #7f1d1d 100%);
+      color: white;
+      min-height: 360px;
+    }
+
+    .container {
+      background: rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(10px);
+      margin: 12px;
+      border-radius: 12px;
+      padding: 16px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+    }
+
+    h2 {
+      font-size: 18px; font-weight: 700;
+      text-align: center; margin-bottom: 14px;
+    }
+
+    /* ─── Cards ─── */
+    .card {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 10px;
+    }
+    .card-label {
+      font-size: 11px; font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      opacity: 0.7;
+      margin-bottom: 6px;
+    }
+
+    /* ─── Buttons ─── */
+    button {
+      width: 100%;
+      padding: 10px;
+      margin: 4px 0;
+      border: none;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+    button:hover { transform: translateY(-1px); }
+    button:active { transform: translateY(0); }
+    button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+    .btn-green {
+      background: linear-gradient(135deg, #4CAF50, #45a049);
+      color: white;
+    }
+    .btn-green:hover { box-shadow: 0 4px 12px rgba(76, 175, 80, 0.3); }
+
+    .btn-blue {
+      background: linear-gradient(135deg, #2196F3, #1976D2);
+      color: white;
+    }
+    .btn-blue:hover { box-shadow: 0 4px 12px rgba(33, 150, 243, 0.3); }
+
+    .btn-orange {
+      background: linear-gradient(135deg, #FF9800, #F57C00);
+      color: white;
+    }
+    .btn-orange:hover { box-shadow: 0 4px 12px rgba(255, 152, 0, 0.3); }
+
+    .btn-red {
+      background: linear-gradient(135deg, #f44336, #d32f2f);
+      color: white;
+    }
+    .btn-red:hover { box-shadow: 0 4px 12px rgba(244, 67, 54, 0.3); }
+
+    .btn-outline {
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      color: white;
+    }
+    .btn-outline:hover { background: rgba(255, 255, 255, 0.18); }
+
+    .btn-row {
+      display: flex; gap: 6px;
+    }
+    .btn-row button { flex: 1; }
+
+    /* ─── Inputs ─── */
+    .input-row {
+      display: flex; gap: 8px; align-items: center;
+      margin-bottom: 6px;
+    }
+    .input-row label {
+      font-size: 13px; white-space: nowrap; font-weight: 500;
+      min-width: 90px;
+    }
+    input[type="number"], input[type="text"], select {
+      flex: 1;
+      padding: 8px 10px;
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.1);
+      color: white;
+      font-size: 13px;
+      outline: none;
+    }
+    input[type="number"] {
+      max-width: 90px;
+      text-align: center;
+    }
+    input[type="text"] {
+      max-width: 220px;
+    }
+    select {
+      max-width: 120px;
+      cursor: pointer;
+    }
+    select option {
+      background: #333;
+      color: white;
+    }
+    input:focus, select:focus { border-color: rgba(255, 255, 255, 0.5); }
+    input::placeholder { color: rgba(255, 255, 255, 0.4); }
+    .input-hint {
+      font-size: 11px; opacity: 0.6;
+    }
+
+    /* ─── Progress bar ─── */
+    .progress-bar {
+      height: 6px;
+      background: rgba(255, 255, 255, 0.15);
+      border-radius: 3px;
+      overflow: hidden;
+      margin: 8px 0;
+    }
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #4CAF50, #8BC34A);
+      width: 0%;
+      transition: width 0.4s ease;
+      border-radius: 3px;
+    }
+    .status-text {
+      font-size: 12px;
+      opacity: 0.9;
+      text-align: center;
+      min-height: 16px;
+    }
+    .stats-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      opacity: 0.7;
+      margin-top: 4px;
+    }
+
+    /* ─── Info boxes ─── */
+    .info {
+      background: rgba(33, 150, 243, 0.15);
+      border-left: 3px solid #2196f3;
+      padding: 8px 10px;
+      margin: 8px 0;
+      border-radius: 4px;
+      font-size: 12px;
+      line-height: 1.4;
+    }
+    .warning {
+      background: rgba(255, 193, 7, 0.15);
+      border-left: 3px solid #ffc107;
+      padding: 8px 10px;
+      margin: 8px 0;
+      border-radius: 4px;
+      font-size: 12px;
+      line-height: 1.4;
+    }
+    .success {
+      background: rgba(76, 175, 80, 0.15);
+      border-left: 3px solid #4caf50;
+      padding: 8px 10px;
+      margin: 8px 0;
+      border-radius: 4px;
+      font-size: 12px;
+      line-height: 1.4;
+    }
+    .error {
+      background: rgba(244, 67, 54, 0.15);
+      border-left: 3px solid #f44336;
+      padding: 8px 10px;
+      margin: 8px 0;
+      border-radius: 4px;
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    /* ─── System stats grid ─── */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .stat-box {
+      background: rgba(255, 255, 255, 0.06);
+      border-radius: 6px;
+      padding: 8px;
+      text-align: center;
+    }
+    .stat-value {
+      font-size: 20px;
+      font-weight: 700;
+      line-height: 1.2;
+    }
+    .stat-label {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      opacity: 0.6;
+      margin-top: 2px;
+    }
+
+    /* ─── Connection indicator ─── */
+    .connection-bar {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      font-size: 11px;
+      opacity: 0.7;
+      margin-bottom: 10px;
+    }
+    .dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+    .dot-green { background: #4CAF50; box-shadow: 0 0 6px rgba(76, 175, 80, 0.5); }
+    .dot-red { background: #f44336; box-shadow: 0 0 6px rgba(244, 67, 54, 0.5); }
+    .dot-yellow { background: #ffc107; box-shadow: 0 0 6px rgba(255, 193, 7, 0.5); }
+
+    /* ─── Metric row (for training live stats) ─── */
+    .metric-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      padding: 4px 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    }
+    .metric-row:last-child { border-bottom: none; }
+    .metric-label { opacity: 0.7; }
+    .metric-value { font-weight: 600; }
+
+    /* ─── Tabs for config sections ─── */
+    .tab-row {
+      display: flex;
+      gap: 2px;
+      margin-bottom: 10px;
+    }
+    .tab-btn {
+      flex: 1;
+      padding: 6px 4px;
+      font-size: 11px;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 6px;
+      color: rgba(255, 255, 255, 0.6);
+      cursor: pointer;
+      margin: 0;
+    }
+    .tab-btn:hover { transform: none; background: rgba(255, 255, 255, 0.12); }
+    .tab-btn.active {
+      background: rgba(255, 255, 255, 0.15);
+      color: white;
+      border-color: rgba(255, 255, 255, 0.3);
+    }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    /* ─── Loading spinner ─── */
+    .loading { text-align: center; padding: 12px; }
+    .spinner {
+      display: inline-block;
+      width: 28px; height: 28px;
+      border: 3px solid rgba(255, 255, 255, 0.2);
+      border-radius: 50%;
+      border-top-color: #4CAF50;
+      animation: spin 0.8s ease-in-out infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading-text {
+      font-size: 12px; opacity: 0.8; margin-top: 6px;
+    }
+
+    /* ─── Help toggle ─── */
+    .help-toggle {
+      width: 100%;
+      background: none;
+      border: none;
+      color: rgba(255, 255, 255, 0.5);
+      font-size: 11px;
+      cursor: pointer;
+      padding: 6px 0 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      transition: color 0.15s;
+    }
+    .help-toggle:hover { color: rgba(255, 255, 255, 0.8); transform: none; }
+    .help-toggle .arrow {
+      display: inline-block;
+      transition: transform 0.2s;
+      font-size: 9px;
+    }
+    .help-toggle.open .arrow { transform: rotate(90deg); }
+    .help-content {
+      overflow: hidden;
+      max-height: 0;
+      transition: max-height 0.3s ease;
+    }
+    .help-content.open { max-height: 800px; }
+    .help-body {
+      padding: 10px 0 0;
+      font-size: 12px;
+      line-height: 1.5;
+      opacity: 0.85;
+    }
+    .help-body h3 {
+      font-size: 12px; font-weight: 700;
+      margin: 10px 0 4px; opacity: 1;
+    }
+    .help-body h3:first-child { margin-top: 0; }
+    .help-body ol, .help-body ul { padding-left: 18px; margin: 4px 0; }
+    .help-body li { margin: 3px 0; }
+    .help-body code {
+      background: rgba(255, 255, 255, 0.12);
+      border-radius: 3px;
+      padding: 1px 5px;
+      font-size: 11px;
+    }
+
+    .hidden { display: none !important; }
+    .mt-6 { margin-top: 6px; }
+    .mt-10 { margin-top: 10px; }
+    .text-center { text-align: center; }
+    .text-sm { font-size: 12px; }
+    .text-xs { font-size: 11px; opacity: 0.7; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>&#x1F525; Anthill Forge</h2>
+
+    <!-- ─── Connection indicator ─── -->
+    <div class="connection-bar">
+      <span id="connDot" class="dot dot-red"></span>
+      <span id="connText">Connecting to Forge server...</span>
+      <button id="serverUrlToggle" title="Change server URL"
+        style="margin-left:auto; background:none; border:1px solid rgba(217,119,6,0.4); color:#fbbf24; font-size:10px; padding:1px 6px; border-radius:3px; cursor:pointer; opacity:0.7;">
+        &#9881;
+      </button>
+    </div>
+    <div id="serverUrlBar" style="display:none; margin:-6px 0 8px; padding:6px 10px; background:rgba(0,0,0,0.3); border-radius:6px;">
+      <div style="display:flex; gap:6px; align-items:center;">
+        <label style="font-size:11px; color:#fbbf24; white-space:nowrap;">Server:</label>
+        <input type="text" id="cfgServerUrl" placeholder="http://localhost:7800"
+          style="flex:1; font-size:11px; padding:3px 6px; background:rgba(0,0,0,0.4); border:1px solid rgba(217,119,6,0.4); color:#fff; border-radius:4px;">
+        <button id="applyServerUrl" style="font-size:10px; padding:2px 8px; background:rgba(217,119,6,0.5); border:1px solid rgba(217,119,6,0.7); color:#fff; border-radius:4px; cursor:pointer; white-space:nowrap;">
+          Connect
+        </button>
+      </div>
+      <div style="font-size:10px; opacity:0.5; margin-top:3px;">e.g. http://BigBlackBox:7800 for LAN training</div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <!--  OFFLINE PANEL — shown when server isn't running       -->
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <div id="offlinePanel">
+      <div class="error">
+        <strong>Forge server is not running.</strong><br>
+        Start it from the anthill-forge directory:
+      </div>
+      <div class="card">
+        <code style="font-size:12px; opacity:0.9;">python forge_server.py</code>
+      </div>
+      <button class="btn-blue" id="retryConnBtn">Retry Connection</button>
+
+      <button class="help-toggle" id="helpToggleOffline">
+        <span class="arrow">&#9654;</span> Setup instructions
+      </button>
+      <div class="help-content" id="helpContentOffline">
+        <div class="help-body">
+          <h3>First-time setup</h3>
+          <ol>
+            <li>Open a terminal in the <code>anthill-forge</code> directory</li>
+            <li>Install training dependencies (this is a big download &mdash; torch alone is ~2.5GB):
+              <br><code>pip install -r requirements.txt</code></li>
+            <li>Start the server: <code>python forge_server.py</code></li>
+            <li>The server runs on <code>localhost:7800</code> by default. Click the &#9881; gear icon next to the connection status to point at a remote machine (e.g. <code>http://BigBlackBox:7800</code>).</li>
+          </ol>
+          <p style="margin-top:6px;opacity:0.8;">You must install the dependencies <strong>before</strong> starting training. The server itself will start without them, but training will fail with <code>ModuleNotFoundError</code> if torch/transformers/peft are missing.</p>
+
+          <h3>What does Forge do?</h3>
+          <ul>
+            <li>Fine-tunes large language models (14B-32B+) on your GPU using QLoRA</li>
+            <li>Uses 4-bit quantization so a 32B model fits in 12-16GB VRAM</li>
+            <li>Exports the fine-tuned model as a GGUF for use with llama.cpp / llama-server</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <!--  DASHBOARD PANEL — main idle view                      -->
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <div id="dashboardPanel" class="hidden">
+
+      <!-- System stats -->
+      <div class="card">
+        <div class="card-label">System</div>
+        <div class="stats-grid">
+          <div class="stat-box">
+            <div class="stat-value" id="statGpuName">--</div>
+            <div class="stat-label">GPU</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-value" id="statVram">--</div>
+            <div class="stat-label">VRAM</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-value" id="statRam">--</div>
+            <div class="stat-label">System RAM</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-value" id="statDatasets">--</div>
+            <div class="stat-label">Datasets</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Dataset info -->
+      <div class="card">
+        <div class="card-label">Training Data</div>
+        <div id="datasetList" class="text-sm" style="opacity:0.8;">Loading...</div>
+      </div>
+
+      <!-- Quick actions -->
+      <div class="card">
+        <div class="card-label">Actions</div>
+        <button class="btn-green" id="openConfigBtn">&#9881; Configure &amp; Train</button>
+        <button class="btn-blue" id="quickExportBtn">&#128230; Export to GGUF</button>
+      </div>
+
+      <!-- Help -->
+      <button class="help-toggle" id="helpToggleDash">
+        <span class="arrow">&#9654;</span> How Anthill Forge works
+      </button>
+      <div class="help-content" id="helpContentDash">
+        <div class="help-body">
+          <h3>Pipeline overview</h3>
+          <ol>
+            <li><strong>Spider</strong> scrapes ChatGPT conversations to JSON</li>
+            <li><strong>Loom</strong> extracts prompt/response pairs to JSONL</li>
+            <li><strong>Forge</strong> fine-tunes a model on those pairs using QLoRA</li>
+            <li>The trained model is exported as a GGUF for llama.cpp / any GGUF-compatible runtime</li>
+          </ol>
+
+          <h3>QLoRA in a nutshell</h3>
+          <ul>
+            <li>The base model is loaded in 4-bit (fits big models in little VRAM)</li>
+            <li>Only small adapter layers are actually trained (~1-2% of weights)</li>
+            <li>After training, adapters are merged back into the full model</li>
+            <li>The merged model is converted to GGUF for local deployment</li>
+          </ul>
+
+          <h3>VRAM requirements</h3>
+          <ul>
+            <li><strong>7B model</strong>: ~4 GB (fits on most modern GPUs)</li>
+            <li><strong>14B model</strong>: ~8 GB (fits in 12-16GB VRAM)</li>
+            <li><strong>32B model</strong>: ~16 GB (may offload excess to system RAM)</li>
+            <li>System RAM handles any overflow automatically via <code>device_map="auto"</code></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <!--  CONFIG PANEL — training configuration                 -->
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <div id="configPanel" class="hidden">
+
+      <!-- Sub-tabs for config sections -->
+      <div class="tab-row">
+        <button class="tab-btn active" data-tab="tabModel">Model</button>
+        <button class="tab-btn" data-tab="tabTraining">Training</button>
+        <button class="tab-btn" data-tab="tabLora">LoRA</button>
+        <button class="tab-btn" data-tab="tabExport">Export</button>
+      </div>
+
+      <!-- Model tab -->
+      <div id="tabModel" class="tab-content active">
+        <div class="input-row">
+          <label>Model ID</label>
+          <input type="text" id="cfgModel" placeholder="Qwen/Qwen2.5-Coder-32B-Instruct">
+        </div>
+        <div style="display:flex; gap:8px; align-items:center; margin-top:4px;">
+          <div class="text-xs" style="flex:1;">HuggingFace model ID or local path</div>
+          <button id="checkModelBtn" class="btn-sm" title="Check if model is cached locally"
+            style="font-size:11px; padding:2px 8px; background:rgba(217,119,6,0.3); border:1px solid rgba(217,119,6,0.5); color:#fbbf24; border-radius:4px; cursor:pointer; white-space:nowrap;">
+            Check Cache
+          </button>
+          <button id="downloadModelBtn" class="btn-sm" title="Download model from HuggingFace"
+            style="font-size:11px; padding:2px 8px; background:rgba(217,119,6,0.5); border:1px solid rgba(217,119,6,0.7); color:#fff; border-radius:4px; cursor:pointer; white-space:nowrap;">
+            &#8615; Download
+          </button>
+        </div>
+        <div id="modelCacheStatus" style="display:none; margin-top:6px; padding:6px 10px; border-radius:6px; font-size:11px;"></div>
+
+        <div class="input-row mt-6">
+          <label>Max Length</label>
+          <input type="number" id="cfgMaxLength" min="256" max="8192" value="2048">
+          <span class="input-hint">tokens</span>
+        </div>
+
+        <div class="input-row">
+          <label>Dataset</label>
+          <select id="cfgDataset">
+            <option value="all">All datasets</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Training tab -->
+      <div id="tabTraining" class="tab-content">
+        <div class="input-row">
+          <label>Quant Bits</label>
+          <select id="cfgQuantBits">
+            <option value="4">4-bit (BnB NF4 — best quality)</option>
+            <option value="3" selected>3-bit (HQQ — fits bigger models)</option>
+            <option value="2">2-bit (HQQ — smallest, lower quality)</option>
+          </select>
+        </div>
+        <div class="text-xs" style="margin-bottom:8px; opacity:0.7;">3-bit lets 32B models fit on 16GB GPUs</div>
+        <div class="input-row">
+          <label>Epochs</label>
+          <input type="number" id="cfgEpochs" min="1" max="100" value="3">
+        </div>
+        <div class="input-row">
+          <label>Batch Size</label>
+          <input type="number" id="cfgBatchSize" min="1" max="8" value="1">
+        </div>
+        <div class="input-row">
+          <label>Grad Accum</label>
+          <input type="number" id="cfgGradAccum" min="1" max="128" value="16">
+          <span class="input-hint">eff. batch: <span id="cfgEffBatch">16</span></span>
+        </div>
+        <div class="input-row">
+          <label>Learning Rate</label>
+          <input type="text" id="cfgLR" value="2e-4" style="max-width:90px;text-align:center;">
+        </div>
+        <div class="input-row">
+          <label>Max Hours</label>
+          <input type="number" id="cfgMaxHours" min="1" max="168" value="24">
+        </div>
+      </div>
+
+      <!-- LoRA tab -->
+      <div id="tabLora" class="tab-content">
+        <div class="input-row">
+          <label>LoRA Rank</label>
+          <input type="number" id="cfgLoraR" min="4" max="256" value="64">
+        </div>
+        <div class="text-xs">Higher = more capacity but more VRAM</div>
+        <div class="input-row mt-6">
+          <label>LoRA Alpha</label>
+          <input type="number" id="cfgLoraAlpha" min="1" max="256" value="16">
+        </div>
+        <div class="input-row">
+          <label>Dropout</label>
+          <input type="text" id="cfgLoraDropout" value="0.05" style="max-width:90px;text-align:center;">
+        </div>
+        <div class="info">
+          Scaling factor = alpha / rank = <span id="cfgScaling">0.25</span><br>
+          Target modules: all linear layers (auto-detected)
+        </div>
+      </div>
+
+      <!-- Export tab -->
+      <div id="tabExport" class="tab-content">
+        <div class="input-row">
+          <label>Quant Type</label>
+          <select id="cfgQuantType">
+            <option value="Q8_0">Q8_0 (recommended)</option>
+            <option value="Q6_K">Q6_K</option>
+            <option value="Q5_K_M">Q5_K_M</option>
+            <option value="Q4_K_M">Q4_K_M</option>
+            <option value="F16">F16 (largest)</option>
+          </select>
+        </div>
+        <div class="input-row">
+          <label>Skip Merge</label>
+          <select id="cfgSkipMerge">
+            <option value="false">No (merge after training)</option>
+            <option value="true">Yes (save adapters only)</option>
+          </select>
+        </div>
+        <div class="text-xs mt-6">
+          GGUF output directory is set in <code>config_qlora.py</code>
+        </div>
+      </div>
+
+      <!-- Action buttons -->
+      <div class="btn-row mt-10">
+        <button class="btn-outline" id="backToDashBtn">&#8592; Back</button>
+        <button class="btn-green" id="startTrainBtn">&#9654; Start Training</button>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <!--  DOWNLOAD PANEL — model download progress               -->
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <div id="downloadPanel" class="hidden">
+      <div class="card">
+        <div class="card-label">Downloading Model...</div>
+        <div id="dlModelName" style="font-size:13px; color:#fbbf24; margin:4px 0 10px;"></div>
+        <div class="progress-bar">
+          <div id="dlProgressFill" class="progress-fill" style="width:0%"></div>
+        </div>
+        <div id="dlStatusText" style="font-size:12px; color:rgba(255,255,255,0.7); margin-top:8px;">Starting download...</div>
+        <div style="font-size:11px; color:rgba(255,255,255,0.5); margin-top:12px;">
+          Large models (32B) are ~65 GB and may take a while depending on your connection.
+          The download is cached locally so you only need to do this once per model.
+        </div>
+      </div>
+      <div style="text-align:center; margin-top:12px;">
+        <button id="dlStopBtn" class="btn" style="background:rgba(239,68,68,0.3); border-color:rgba(239,68,68,0.5);">
+          &#9632; Stop Download
+        </button>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <!--  TRAINING PANEL — live progress during training        -->
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <div id="trainingPanel" class="hidden">
+
+      <div class="card">
+        <div id="trainStateLabel" class="card-label">Training...</div>
+        <div class="progress-bar">
+          <div id="trainProgressFill" class="progress-fill"></div>
+        </div>
+        <div id="trainStatusText" class="status-text">Starting...</div>
+        <div class="stats-row">
+          <span id="trainStep">Step: 0</span>
+          <span id="trainEpoch">Epoch: 0/0</span>
+          <span id="trainETA">ETA: --</span>
+        </div>
+      </div>
+
+      <!-- Live metrics -->
+      <div class="card">
+        <div class="card-label">Live Metrics</div>
+        <div class="metric-row">
+          <span class="metric-label">Loss</span>
+          <span class="metric-value" id="metricLoss">--</span>
+        </div>
+        <div class="metric-row">
+          <span class="metric-label">Learning Rate</span>
+          <span class="metric-value" id="metricLR">--</span>
+        </div>
+        <div class="metric-row">
+          <span class="metric-label">GPU VRAM</span>
+          <span class="metric-value" id="metricVram">--</span>
+        </div>
+        <div class="metric-row">
+          <span class="metric-label">Speed</span>
+          <span class="metric-value" id="metricSpeed">--</span>
+        </div>
+        <div class="metric-row">
+          <span class="metric-label">Elapsed</span>
+          <span class="metric-value" id="metricElapsed">--</span>
+        </div>
+      </div>
+
+      <!-- Control buttons -->
+      <div class="btn-row">
+        <button class="btn-red" id="stopTrainBtn">&#9632; Stop</button>
+      </div>
+      <div class="text-xs text-center mt-6">
+        Stopping saves a checkpoint — progress is not lost.
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <!--  EXPORT PANEL — GGUF conversion progress               -->
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <div id="exportPanel" class="hidden">
+      <div class="card">
+        <div id="exportStateLabel" class="card-label">Exporting to GGUF...</div>
+        <div class="progress-bar">
+          <div id="exportProgressFill" class="progress-fill"></div>
+        </div>
+        <div id="exportStatusText" class="status-text">Starting export...</div>
+      </div>
+
+      <button class="btn-red" id="stopExportBtn">&#9632; Cancel Export</button>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <!--  DONE PANEL — training/export complete                 -->
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <div id="donePanel" class="hidden">
+      <div id="doneMessage" class="success"></div>
+
+      <!-- Training results summary -->
+      <div class="card" id="doneSummary">
+        <div class="card-label">Results</div>
+        <div class="metric-row">
+          <span class="metric-label">Final Loss</span>
+          <span class="metric-value" id="doneLoss">--</span>
+        </div>
+        <div class="metric-row">
+          <span class="metric-label">Training Time</span>
+          <span class="metric-value" id="doneTime">--</span>
+        </div>
+        <div class="metric-row">
+          <span class="metric-label">Model</span>
+          <span class="metric-value" id="doneModel">--</span>
+        </div>
+      </div>
+
+      <button class="btn-blue" id="doneExportBtn">&#128230; Export to GGUF</button>
+      <button class="btn-outline mt-6" id="doneNewBtn">&#128260; New Session</button>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <!--  ERROR PANEL — something went wrong                    -->
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <div id="errorPanel" class="hidden">
+      <div class="error" id="errorMessage">An error occurred.</div>
+      <button class="btn-outline" id="errorBackBtn">&#8592; Back to Dashboard</button>
+    </div>
+
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

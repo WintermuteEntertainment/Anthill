@@ -20,16 +20,28 @@ set OUTPUT_DIR=..\datasets\processed
 REM Create output directory if it doesn't exist
 if not exist "%OUTPUT_DIR%" mkdir "%OUTPUT_DIR%"
 
+REM Generate unique output filenames so we never overwrite previous runs
+set RAW_OUT=%OUTPUT_DIR%\pairs.jsonl
+set CLEAN_OUT=%OUTPUT_DIR%\pairs_clean.jsonl
+set /a N=2
+:check_raw
+if exist "%RAW_OUT%" (
+    set RAW_OUT=%OUTPUT_DIR%\pairs_%N%.jsonl
+    set CLEAN_OUT=%OUTPUT_DIR%\pairs_clean_%N%.jsonl
+    set /a N+=1
+    goto :check_raw
+)
+
 echo Input: %INPUT_FILE%
-echo Output directory: %OUTPUT_DIR%
+echo Output: %CLEAN_OUT%
 echo.
 
 REM Step 1: Extract pairs
 echo Step 1: Extracting prompt/completion pairs...
-python prepare_datasets_parallel.py "%INPUT_FILE%" "%OUTPUT_DIR%\pairs.jsonl"
+python prepare_datasets_parallel.py "%INPUT_FILE%" "%RAW_OUT%"
 
 if errorlevel 1 (
-    echo ❌ Extraction failed
+    echo [ERROR] Extraction failed
     pause
     exit /b 1
 )
@@ -37,24 +49,21 @@ if errorlevel 1 (
 REM Step 2: Deduplicate and clean
 echo.
 echo Step 2: Deduplicating and filtering...
-python dedupe_and_filter.py "%OUTPUT_DIR%\pairs.jsonl" "%OUTPUT_DIR%\pairs_clean.jsonl"
+python dedupe_and_filter.py "%RAW_OUT%" "%CLEAN_OUT%"
 
 if errorlevel 1 (
-    echo ❌ Deduplication failed
+    echo [ERROR] Deduplication failed
     pause
     exit /b 1
 )
 
 echo.
-echo ✅ Preprocessing complete!
+echo [OK] Preprocessing complete!
 echo.
-echo Raw pairs: %OUTPUT_DIR%\pairs.jsonl
-echo Cleaned pairs: %OUTPUT_DIR%\pairs_clean.jsonl
+echo Raw pairs: %RAW_OUT%
+echo Cleaned pairs: %CLEAN_OUT%
 echo.
 echo Next: Run training in anthill-forge directory.
 echo.
-
-REM Optional: Clean up intermediate file (comment out if you want to keep it)
-REM del "%OUTPUT_DIR%\pairs.jsonl"
 
 pause

@@ -60,7 +60,11 @@ document.addEventListener('DOMContentLoaded', () => {
     if (msg.action === 'discoveryProgress') {
       const el = document.getElementById('discoveryScanStatus');
       el.classList.remove('hidden');
-      el.innerHTML = `<span class="spinner"></span> ${msg.message}`;
+      el.textContent = '';
+      const spinner = document.createElement('span');
+      spinner.className = 'spinner';
+      el.appendChild(spinner);
+      el.appendChild(document.createTextNode(' ' + msg.message));
     }
   });
 
@@ -71,6 +75,39 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('limitInput').addEventListener('change', (e) => {
     chrome.storage.local.set({ collectorLimit: parseInt(e.target.value) || 0 });
   });
+
+  // ─── Image type filter checkboxes ────────────────────────────────
+  const filterBoxes = {
+    dalle:   document.getElementById('filterDalle'),
+    upload:  document.getElementById('filterUpload'),
+    chart:   document.getElementById('filterChart'),
+    web:     document.getElementById('filterWeb'),
+  };
+
+  // Load saved filter prefs
+  chrome.storage.local.get(['collectorFilters'], (r) => {
+    if (r.collectorFilters) {
+      for (const [key, el] of Object.entries(filterBoxes)) {
+        if (typeof r.collectorFilters[key] === 'boolean') {
+          el.checked = r.collectorFilters[key];
+        }
+      }
+    }
+    // Push current filters to background on load
+    syncFiltersToBackground();
+  });
+
+  // Save and sync on any change
+  for (const el of Object.values(filterBoxes)) {
+    el.addEventListener('change', () => {
+      const prefs = {};
+      for (const [key, box] of Object.entries(filterBoxes)) {
+        prefs[key] = box.checked;
+      }
+      chrome.storage.local.set({ collectorFilters: prefs });
+      syncFiltersToBackground();
+    });
+  }
 
   // Initial state
   refreshStatus();
@@ -346,20 +383,20 @@ function renderGallery() {
       </div>`;
   }).join('');
 
-  // Wire click events
+  // Wire click events: click = select, double-click = lightbox
   grid.querySelectorAll('.thumb').forEach(thumb => {
     thumb.addEventListener('click', (e) => {
-      if (e.shiftKey || e.ctrlKey) {
-        // Toggle selection
-        toggleSelect(thumb);
-      } else {
-        // Open lightbox
-        const idx = parseInt(thumb.dataset.index);
-        openLightbox(filtered[idx]);
-      }
+      e.preventDefault();
+      toggleSelect(thumb);
     });
 
-    // Right-click or long-press to toggle selection
+    thumb.addEventListener('dblclick', (e) => {
+      e.preventDefault();
+      const idx = parseInt(thumb.dataset.index);
+      openLightbox(filtered[idx]);
+    });
+
+    // Right-click to toggle selection
     thumb.addEventListener('contextmenu', (e) => {
       e.preventDefault();
       toggleSelect(thumb);
@@ -434,6 +471,7 @@ async function downloadSelected() {
         let blob;
         if (src.startsWith('data:')) {
           blob = dataUrlToBlob(src);
+          if (!blob) { completed++; continue; }
         } else {
           // Remote URL — fetch it (may fail if token expired)
           const resp = await fetch(src);
@@ -507,12 +545,18 @@ function guessExtension(url) {
 }
 
 function dataUrlToBlob(dataUrl) {
-  const [header, base64] = dataUrl.split(',');
-  const mime = header.match(/:(.*?);/)?.[1] || 'image/png';
-  const bytes = atob(base64);
-  const arr = new Uint8Array(bytes.length);
-  for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
-  return new Blob([arr], { type: mime });
+  try {
+    const [header, data] = dataUrl.split(',');
+    const mime = header.match(/:(.*?);/)?.[1] || 'image/png';
+    const isBase64 = header.indexOf('base64') !== -1;
+    const decoded = isBase64 ? atob(data) : decodeURIComponent(data);
+    const arr = new Uint8Array(decoded.length);
+    for (let i = 0; i < decoded.length; i++) arr[i] = decoded.charCodeAt(i);
+    return new Blob([arr], { type: mime });
+  } catch (e) {
+    console.warn('[Collector] dataUrlToBlob failed:', e.message);
+    return null;
+  }
 }
 
 
@@ -574,9 +618,35 @@ async function ensureContentScript(tabId) {
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
+function getActiveFilterTypes() {
+  // Map checkbox IDs to the image type values used by classifyImage()
+  const mapping = {
+    dalle:  ['dalle', 'generated'],  // both AI-generated types
+    upload: ['upload'],
+    chart:  ['chart'],
+    web:    ['image'],               // generic/web images
+  };
+  const allowed = [];
+  for (const [key, types] of Object.entries(mapping)) {
+    const el = document.getElementById('filter' + key.charAt(0).toUpperCase() + key.slice(1));
+    if (el && el.checked) allowed.push(...types);
+  }
+  return allowed;
+}
+
+function syncFiltersToBackground() {
+  const allowedTypes = getActiveFilterTypes();
+  chrome.runtime.sendMessage({ action: 'setFilters', allowedTypes }, () => {
+    if (chrome.runtime.lastError) console.warn('syncFilters:', chrome.runtime.lastError);
+  });
+}
+
 function esc(s) {
   if (!s) return '';
   const d = document.createElement('div');
   d.textContent = s;
-  return d.innerHTML.replace(/"/g, '&quot;');
+  return d.innerHTML
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+    .replace(/`/g, '&#96;');
 }

@@ -1,0 +1,20 @@
+{
+  "manifest_version": 3,
+  "name": "Anthill Forge",
+  "version": "1.0.0",
+  "description": "QLoRA fine-tuning dashboard — train, merge, and export large language models to GGUF from your browser.",
+  "permissions": [
+    "storage",
+    "notifications"
+  ],
+  "host_permissions": [
+    "http://localhost:7800/*",
+    "http://*/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html"
+  }
+}

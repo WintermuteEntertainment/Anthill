@@ -18,15 +18,50 @@ const DEFAULT_SESSION = {
 };
 
 let session = { ...DEFAULT_SESSION };
-let keepAlive = null;
-
 // ── Separate storage for image data URLs (can be huge) ──────────────
 // We use a Map in memory during the active scan session.
 // Data URLs are only needed for gallery thumbnails while the popup is open.
+const MAX_CACHE_SIZE = 100;
 let imageDataCache = new Map();  // url-key → data URL
 
-function startKeepAlive() { if (!keepAlive) keepAlive = setInterval(() => {}, 20000); }
-function stopKeepAlive() { if (keepAlive) { clearInterval(keepAlive); keepAlive = null; } }
+// Image type filter — which types to collect (empty = all)
+let allowedTypes = [];  // e.g. ['dalle', 'generated', 'upload']
+
+// Keep service worker alive during scanning via chrome.alarms
+const KEEPALIVE_ALARM = 'collector-keepalive';
+
+function startKeepAlive() {
+  chrome.alarms.create(KEEPALIVE_ALARM, { periodInMinutes: 0.4 }); // ~24s
+}
+function stopKeepAlive() {
+  chrome.alarms.clear(KEEPALIVE_ALARM);
+}
+
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name === KEEPALIVE_ALARM) {
+    if (session.state !== 'scanning') {
+      stopKeepAlive();
+      return;
+    }
+    // Validate processing tab still exists
+    if (session.processingTab !== null) {
+      chrome.tabs.get(session.processingTab, (tab) => {
+        if (chrome.runtime.lastError) {
+          console.warn('[Collector] Keepalive: processing tab gone, clearing');
+          session.processingTab = null;
+          saveSession();
+        }
+      });
+    }
+    // Evict oldest cache entries if over limit
+    if (imageDataCache.size > MAX_CACHE_SIZE) {
+      const keys = imageDataCache.keys();
+      while (imageDataCache.size > MAX_CACHE_SIZE) {
+        imageDataCache.delete(keys.next().value);
+      }
+    }
+  }
+});
 
 function saveSession() {
   // Save session metadata only — no data URLs, no huge blobs.
@@ -56,6 +91,20 @@ function saveSession() {
   };
   chrome.storage.local.set({ collectorSession: saveable });
 }
+
+// Restore filters on startup
+chrome.storage.local.get(['collectorFilters'], (r) => {
+  if (r.collectorFilters) {
+    const mapping = { dalle: ['dalle', 'generated'], upload: ['upload'], chart: ['chart'], web: ['image'] };
+    allowedTypes = [];
+    for (const [key, types] of Object.entries(mapping)) {
+      if (r.collectorFilters[key] !== false) allowedTypes.push(...types);
+    }
+    // If all are enabled, clear the filter (no filtering needed)
+    if (allowedTypes.length >= 5) allowedTypes = [];
+    console.log('[Collector] Restored filters:', allowedTypes.length ? allowedTypes.join(', ') : 'all');
+  }
+});
 
 // Restore session on startup
 chrome.storage.local.get(['collectorSession'], (result) => {
@@ -109,6 +158,12 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       case 'addImages':
         addImages(msg.images);
         sendResponse({ ok: true, total: session.images.length });
+        break;
+
+      case 'setFilters':
+        allowedTypes = msg.allowedTypes || [];
+        console.log('[Collector] Filter set:', allowedTypes.length ? allowedTypes.join(', ') : 'all');
+        sendResponse({ ok: true });
         break;
 
       case 'pause':
@@ -166,15 +221,29 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 function addImages(newImages) {
   const existingUrls = new Set(session.images.map(i => i.url));
   let added = 0;
+  let filtered = 0;
 
   for (const img of newImages) {
     // Use the original URL as the dedup key (not the data URL)
     const key = img.originalUrl || img.url;
     if (existingUrls.has(key)) continue;
 
-    // Cache data URL in memory for gallery thumbnails
+    // Apply type filter if set
+    if (allowedTypes.length > 0) {
+      const imgType = img.type || 'image';
+      if (!allowedTypes.includes(imgType)) {
+        filtered++;
+        continue;
+      }
+    }
+
+    // Cache data URL in memory for gallery thumbnails (with LRU eviction)
     if (img.dataUrl) {
       imageDataCache.set(key, img.dataUrl);
+      if (imageDataCache.size > MAX_CACHE_SIZE) {
+        const oldest = imageDataCache.keys().next().value;
+        imageDataCache.delete(oldest);
+      }
     }
 
     // Store lightweight metadata only
@@ -197,29 +266,18 @@ function addImages(newImages) {
 
     // Auto-download immediately if enabled
     if (session.autoDownload) {
-      const dlUrl = img.dataUrl || img.url;
       const idx = session.images.length - 1;
       const path = buildFilename(meta, idx);
       meta.downloadPath = path;
       meta.downloaded = true;
       session.downloadedCount++;
 
-      chrome.downloads.download({
-        url: dlUrl,
-        filename: path,
-        saveAs: false,
-        conflictAction: 'uniquify',
-      }, (downloadId) => {
-        if (chrome.runtime.lastError) {
-          console.warn(`[Collector] Download failed for ${meta.alt || key}: ${chrome.runtime.lastError.message}`);
-          meta.downloaded = false;
-          session.downloadedCount = Math.max(0, session.downloadedCount - 1);
-        }
-      });
+      // Use downloadSingleImage which handles data URL → objectURL conversion
+      downloadSingleImage({ ...meta, dataUrl: img.dataUrl }, idx);
     }
   }
 
-  console.log(`[Collector] Added ${added} new images (${session.images.length} total, ${session.downloadedCount} downloaded)`);
+  console.log(`[Collector] Added ${added} new images (${session.images.length} total, ${session.downloadedCount} downloaded${filtered ? `, ${filtered} filtered out` : ''})`);
   saveSession();
 }
 
@@ -339,13 +397,19 @@ function processNext() {
     session.processingTab = tab.id;
     saveSession();
 
+    let processed = false;  // Guard against race between listener and timeout
+
     const listener = (tabId, changeInfo) => {
       if (tabId !== tab.id || changeInfo.status !== 'complete') return;
       chrome.tabs.onUpdated.removeListener(listener);
 
       // Wait for render, scroll, then scan images
       setTimeout(() => {
+        if (processed) return;
         chrome.tabs.sendMessage(tab.id, { action: 'scanImages' }, (response) => {
+          if (processed) return;
+          processed = true;
+
           if (chrome.runtime.lastError || !response?.ok) {
             console.error(`[Collector] Failed to scan: ${conversation.title}`);
             session.failed++;
@@ -375,7 +439,8 @@ function processNext() {
     // Safety timeout
     setTimeout(() => {
       chrome.tabs.onUpdated.removeListener(listener);
-      if (session.processingTab === tab.id) {
+      if (!processed && session.processingTab === tab.id) {
+        processed = true;
         session.failed++;
         chrome.tabs.remove(tab.id, () => {
           if (chrome.runtime.lastError) {}
@@ -396,18 +461,39 @@ function processNext() {
 
 function downloadSingleImage(image, index) {
   const filename = buildFilename(image, index);
-  const url = image.dataUrl || image.url;
+  const src = image.dataUrl || image.url;
 
-  chrome.downloads.download({
-    url,
-    filename,
-    saveAs: false,
-    conflictAction: 'uniquify',
-  }, (downloadId) => {
-    if (chrome.runtime.lastError) {
-      console.warn(`[Collector] Download failed: ${chrome.runtime.lastError.message}`);
-    }
-  });
+  if (src.startsWith('data:')) {
+    // Convert data URL to blob + object URL (more memory efficient)
+    fetch(src)
+      .then(res => res.blob())
+      .then(blob => {
+        const objectUrl = URL.createObjectURL(blob);
+        chrome.downloads.download({
+          url: objectUrl,
+          filename,
+          saveAs: false,
+          conflictAction: 'uniquify',
+        }, () => {
+          setTimeout(() => URL.revokeObjectURL(objectUrl), 60000);
+          if (chrome.runtime.lastError) {
+            console.warn(`[Collector] Download failed: ${chrome.runtime.lastError.message}`);
+          }
+        });
+      })
+      .catch(err => console.warn(`[Collector] Data URL conversion failed: ${err.message}`));
+  } else {
+    chrome.downloads.download({
+      url: src,
+      filename,
+      saveAs: false,
+      conflictAction: 'uniquify',
+    }, () => {
+      if (chrome.runtime.lastError) {
+        console.warn(`[Collector] Download failed: ${chrome.runtime.lastError.message}`);
+      }
+    });
+  }
 }
 
 function downloadAllImages(images) {

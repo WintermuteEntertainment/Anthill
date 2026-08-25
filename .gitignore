@@ -399,3 +399,17 @@ FodyWeavers.xsd
 
 # JetBrains Rider
 *.sln.iml
+
+# --- added 2026-08-24: estate cleanup ---
+# regenerable pipeline output
+datasets/processed/
+*.jsonl
+# secrets: never commit
+hf_token_*.txt
+.env
+*.pem
+# stray shell shortcuts
+*.lnk
+# packaged extension builds, regenerable
+anthill-collector_*.zip
+anthill-spider*.zip

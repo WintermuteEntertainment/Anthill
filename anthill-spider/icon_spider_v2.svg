@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <radialGradient id="bodyGrad" cx="50%" cy="45%" r="50%">
+      <stop offset="0%" stop-color="#a855f7"/>
+      <stop offset="100%" stop-color="#6d28d9"/>
+    </radialGradient>
+  </defs>
+
+  <!-- 8 Legs - all angled organically, no cardinal directions -->
+  <!-- Legs curve outward like a real spider / emblem style -->
+  <!-- Front legs - reaching forward and out -->
+  <path d="M 240,230 Q 180,160 100,80" stroke="#7c3aed" stroke-width="12" stroke-linecap="round" fill="none"/>
+  <path d="M 272,230 Q 332,160 412,80" stroke="#7c3aed" stroke-width="12" stroke-linecap="round" fill="none"/>
+
+  <!-- Second pair - angled wider -->
+  <path d="M 228,248 Q 140,220 40,200" stroke="#7c3aed" stroke-width="11" stroke-linecap="round" fill="none"/>
+  <path d="M 284,248 Q 372,220 472,200" stroke="#7c3aed" stroke-width="11" stroke-linecap="round" fill="none"/>
+
+  <!-- Third pair - angled slightly downward -->
+  <path d="M 228,268 Q 140,292 40,312" stroke="#7c3aed" stroke-width="11" stroke-linecap="round" fill="none"/>
+  <path d="M 284,268 Q 372,292 472,312" stroke="#7c3aed" stroke-width="11" stroke-linecap="round" fill="none"/>
+
+  <!-- Back legs - reaching backward and out -->
+  <path d="M 240,282 Q 180,352 100,432" stroke="#7c3aed" stroke-width="12" stroke-linecap="round" fill="none"/>
+  <path d="M 272,282 Q 332,352 412,432" stroke="#7c3aed" stroke-width="12" stroke-linecap="round" fill="none"/>
+
+  <!-- Body - oblong/pill shape -->
+  <ellipse cx="256" cy="256" rx="48" ry="58" fill="url(#bodyGrad)"/>
+
+  <!-- Two dot eyes - optional, comment out for pure minimal -->
+  <circle cx="244" cy="245" r="7" fill="#1a1a2e"/>
+  <circle cx="268" cy="245" r="7" fill="#1a1a2e"/>
+</svg>

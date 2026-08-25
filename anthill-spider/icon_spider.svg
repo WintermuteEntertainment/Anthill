@@ -1,0 +1,93 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <!-- Subtle gradient for the body -->
+    <radialGradient id="bodyGrad" cx="50%" cy="45%" r="50%">
+      <stop offset="0%" stop-color="#a855f7"/>
+      <stop offset="100%" stop-color="#6d28d9"/>
+    </radialGradient>
+    <!-- Glow effect behind the body -->
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#a855f7" stop-opacity="0.15"/>
+      <stop offset="100%" stop-color="#a855f7" stop-opacity="0"/>
+    </radialGradient>
+    <!-- Leg gradient - fades slightly at tips -->
+    <linearGradient id="legGradN" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0%" stop-color="#7c3aed"/>
+      <stop offset="100%" stop-color="#a855f7" stop-opacity="0.7"/>
+    </linearGradient>
+    <linearGradient id="legGradNE" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0%" stop-color="#7c3aed"/>
+      <stop offset="100%" stop-color="#a855f7" stop-opacity="0.7"/>
+    </linearGradient>
+    <linearGradient id="legGradE" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#7c3aed"/>
+      <stop offset="100%" stop-color="#a855f7" stop-opacity="0.7"/>
+    </linearGradient>
+    <linearGradient id="legGradSE" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#7c3aed"/>
+      <stop offset="100%" stop-color="#a855f7" stop-opacity="0.7"/>
+    </linearGradient>
+    <linearGradient id="legGradS" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#7c3aed"/>
+      <stop offset="100%" stop-color="#a855f7" stop-opacity="0.7"/>
+    </linearGradient>
+    <linearGradient id="legGradSW" x1="1" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#7c3aed"/>
+      <stop offset="100%" stop-color="#a855f7" stop-opacity="0.7"/>
+    </linearGradient>
+    <linearGradient id="legGradW" x1="1" y1="0" x2="0" y2="0">
+      <stop offset="0%" stop-color="#7c3aed"/>
+      <stop offset="100%" stop-color="#a855f7" stop-opacity="0.7"/>
+    </linearGradient>
+    <linearGradient id="legGradNW" x1="1" y1="1" x2="0" y2="0">
+      <stop offset="0%" stop-color="#7c3aed"/>
+      <stop offset="100%" stop-color="#a855f7" stop-opacity="0.7"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background - transparent, but uncomment for dark preview -->
+  <!-- <rect width="512" height="512" fill="#1a1a2e" rx="64"/> -->
+
+  <!-- Subtle glow behind body -->
+  <ellipse cx="256" cy="256" rx="140" ry="140" fill="url(#glow)"/>
+
+  <!-- 8 Legs - tapered lines radiating from body center -->
+  <!-- Each leg: thick at body (stroke-width tapers via polygon/path) -->
+
+  <!-- N - North -->
+  <path d="M 249,210 L 256,52 L 263,210" fill="url(#legGradN)" opacity="0.9"/>
+
+  <!-- NE - Northeast -->
+  <path d="M 290,222 L 400,112 L 280,232" fill="url(#legGradNE)" opacity="0.9"/>
+
+  <!-- E - East -->
+  <path d="M 302,249 L 460,256 L 302,263" fill="url(#legGradE)" opacity="0.9"/>
+
+  <!-- SE - Southeast -->
+  <path d="M 290,290 L 400,400 L 280,280" fill="url(#legGradSE)" opacity="0.9"/>
+
+  <!-- S - South -->
+  <path d="M 249,302 L 256,460 L 263,302" fill="url(#legGradS)" opacity="0.9"/>
+
+  <!-- SW - Southwest -->
+  <path d="M 222,290 L 112,400 L 232,280" fill="url(#legGradSW)" opacity="0.9"/>
+
+  <!-- W - West -->
+  <path d="M 210,249 L 52,256 L 210,263" fill="url(#legGradW)" opacity="0.9"/>
+
+  <!-- NW - Northwest -->
+  <path d="M 222,222 L 112,112 L 232,232" fill="url(#legGradNW)" opacity="0.9"/>
+
+  <!-- Body - oblong/pill shape, centered -->
+  <ellipse cx="256" cy="256" rx="56" ry="68" fill="url(#bodyGrad)"/>
+
+  <!-- Subtle body highlight -->
+  <ellipse cx="248" cy="242" rx="22" ry="28" fill="#c084fc" opacity="0.25"/>
+
+  <!-- Two small eyes -->
+  <circle cx="243" cy="244" r="6" fill="#1a1a2e" opacity="0.6"/>
+  <circle cx="269" cy="244" r="6" fill="#1a1a2e" opacity="0.6"/>
+  <!-- Eye highlights -->
+  <circle cx="245" cy="242" r="2" fill="white" opacity="0.5"/>
+  <circle cx="271" cy="242" r="2" fill="white" opacity="0.5"/>
+</svg>

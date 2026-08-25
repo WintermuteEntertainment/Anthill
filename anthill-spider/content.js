@@ -1,565 +1,690 @@
-// Anthill Spider Content Script
-(function() {
-  // Prevent multiple loads
-  if (window.__CHATGPT_EXPORTER_LOADED__) {
-    console.log('[Spider] Already loaded, skipping');
-    return;
-  }
-  
-  window.__CHATGPT_EXPORTER_LOADED__ = true;
-  console.log('[Spider] Content script loaded at', new Date().toISOString());
-  
-  // Message listener
-  ext.runtime.onMessage.addListener((request, sender, sendResponse) => {
-    console.log('[Spider] Received action:', request.action);
-    
-    if (request.action === 'extractLinks') {
-      // Use async function to handle the promise
-      (async () => {
-        try {
-          // First, scroll sidebar to load ALL conversations
-          await scrollSidebarToLoadAllConversations();
-          
-          // Now extract all conversations
-          const conversations = extractConversationLinks();
-          sendResponse({ ok: true, conversations });
-        } catch (error) {
-          console.error('[Spider] Error in extractLinks:', error);
-          // Still try to extract what we have
-          const conversations = extractConversationLinks();
-          sendResponse({ ok: true, conversations, warning: error.message });
-        }
-      })();
-      
-      return true; // Keep channel open for async response
-    }
-    
-    if (request.action === 'scrapeThisPage') {
-      console.log('[Spider] Scraping conversation:', request.conversation?.title);
-      
-      scrapeCurrentPage(request.conversation)
-        .then(result => {
-          sendResponse(result);
-        })
-        .catch(error => {
-          console.error('[Spider] Error scraping page:', error);
-          sendResponse({ ok: false, error: error.message });
-        });
-      
-      return true; // Keep channel open for async response
-    }
-    
-    // Handle unknown actions
-    sendResponse({ ok: false, error: 'Unknown action: ' + request.action });
-    return true;
-  });
-  
-  async function scrollSidebarToLoadAllConversations() {
-    console.log('[Spider] Scrolling sidebar to load ALL conversations...');
-    
-    const sidebar = findSidebar();
-    if (!sidebar) {
-      console.log('[Spider] No sidebar found, skipping scrolling');
-      return;
-    }
-    
-    let lastConversationCount = 0;
-    let currentConversationCount = 0;
-    let scrollAttempts = 0;
-    let noNewConversationsCount = 0;
-    const maxNoNewConversations = 3; // Stop after 3 attempts with no new conversations
-    let estimatedTotalConversations = 0;
-    
-    // Initial count
-    lastConversationCount = countConversationsInSidebar();
-    console.log(`[Spider] Initial conversation count: ${lastConversationCount}`);
-    
-    // Estimate total possible conversations based on scroll height
-    if (sidebar.scrollHeight > 0) {
-      const visibleConversations = lastConversationCount;
-      const visibleHeight = sidebar.clientHeight;
-      const totalHeight = sidebar.scrollHeight;
-      estimatedTotalConversations = Math.round((totalHeight / visibleHeight) * visibleConversations * 0.8);
-      console.log(`[Spider] Estimated total conversations: ${estimatedTotalConversations}`);
-    }
-    
-    // Keep scrolling until no new conversations load
-    while (noNewConversationsCount < maxNoNewConversations) {
-      scrollAttempts++;
-      
-      // Scroll the sidebar
-      const scrollResult = scrollSidebar(sidebar);
-      if (!scrollResult) {
-        console.log('[Spider] Cannot scroll sidebar further');
-        break;
-      }
-      
-      // Wait for new content to load
-      // Dynamic wait time: longer if we're loading many conversations
-      const baseWaitTime = 1500;
-      const extraWait = scrollAttempts < 10 ? 1000 : 500;
-      const waitTime = baseWaitTime + extraWait;
-      
-      console.log(`[Spider] Waiting ${waitTime}ms for new conversations to load (attempt ${scrollAttempts})...`);
-      await new Promise(resolve => setTimeout(resolve, waitTime));
-      
-      // Count current conversations
-      currentConversationCount = countConversationsInSidebar();
-      console.log(`[Spider] After scroll ${scrollAttempts}: ${currentConversationCount} conversations`);
-      
-      // Check if we got new conversations
-      if (currentConversationCount > lastConversationCount) {
-        const newConvos = currentConversationCount - lastConversationCount;
-        console.log(`[Spider] Loaded ${newConvos} new conversations!`);
-        lastConversationCount = currentConversationCount;
-        noNewConversationsCount = 0; // Reset counter
-        
-        // Update estimated time in console
-        const estimatedTime = Math.round((scrollAttempts * waitTime) / 1000);
-        console.log(`[Spider] Progress: ${lastConversationCount} conversations loaded in ${estimatedTime}s`);
-      } else {
-        noNewConversationsCount++;
-        console.log(`[Spider] No new conversations (attempt ${noNewConversationsCount}/${maxNoNewConversations})`);
-        
-        // Try alternative scrolling strategies
-        if (noNewConversationsCount === 1) {
-          console.log('[Spider] Trying alternative scroll strategies...');
-          
-          // Strategy 1: Scroll to different positions
-          sidebar.scrollTop = sidebar.scrollHeight * 0.3;
-          await new Promise(resolve => setTimeout(resolve, 1000));
-          
-          sidebar.scrollTop = sidebar.scrollHeight * 0.6;
-          await new Promise(resolve => setTimeout(resolve, 1000));
-          
-          // Strategy 2: Scroll by smaller increments
-          const smallScrollHeight = sidebar.clientHeight * 0.3;
-          for (let i = 0; i < 3; i++) {
-            sidebar.scrollTop = Math.min(
-              sidebar.scrollTop + smallScrollHeight,
-              sidebar.scrollHeight
-            );
-            await new Promise(resolve => setTimeout(resolve, 800));
-          }
-          
-          // Re-count after alternative scrolling
-          currentConversationCount = countConversationsInSidebar();
-          if (currentConversationCount > lastConversationCount) {
-            console.log(`[Spider] Alternative strategy loaded ${currentConversationCount - lastConversationCount} new conversations!`);
-            lastConversationCount = currentConversationCount;
-            noNewConversationsCount = 0;
-            continue;
-          }
-        }
-      }
-      
-      // Check if we've reached the bottom
-      const isAtBottom = Math.abs(sidebar.scrollHeight - sidebar.scrollTop - sidebar.clientHeight) < 10;
-      if (isAtBottom && noNewConversationsCount >= 1) {
-        console.log('[Spider] Reached bottom of sidebar');
-        break;
-      }
-      
-      // Safety: If we're stuck in an infinite loop, break after 1000 attempts (unlikely)
-      if (scrollAttempts > 1000) {
-        console.warn('[Spider] Safety break after 1000 scroll attempts');
-        break;
-      }
-    }
-    
-    console.log(`[Spider] Finished scrolling. Total conversations loaded: ${lastConversationCount}`);
-    console.log(`[Spider] Total scroll attempts: ${scrollAttempts}`);
-    
-    // One final wait to ensure all content is loaded
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    return lastConversationCount;
-  }
-  
-  function findSidebar() {
-    // Try multiple selectors for the sidebar
-    const selectors = [
-      'nav',
-      'aside',
-      '[role="navigation"]',
-      '[data-testid="conversation-list"]',
-      '[class*="sidebar"]',
-      '[class*="Sidebar"]',
-      'div[class*="flex-col"]',
-      'div[class*="overflow-y-auto"]',
-      'div[class*="scrollable"]',
-      'div[class*="conversation"]',
-      'div[data-radix-scroll-area-viewport]', // ChatGPT sometimes uses this
-      'div[class*="react-scroll-to-bottom"]'
-    ];
-    
-    for (const selector of selectors) {
-      const elements = document.querySelectorAll(selector);
-      for (const element of elements) {
-        // Check if it looks like a sidebar (has scrollable content and is on the side)
-        const hasScroll = element.scrollHeight > element.clientHeight;
-        const isOnSide = element.getBoundingClientRect().left < 300; // Assuming sidebar is on the left
-        
-        if (hasScroll && isOnSide && element.clientHeight > 300) {
-          console.log(`[Spider] Found sidebar with selector: ${selector}`);
-          return element;
-        }
-      }
-    }
-    
-    console.log('[Spider] No sidebar found with standard selectors, trying fallback...');
-    
-    // Fallback: Find any scrollable container with conversation links
-    const allElements = document.querySelectorAll('*');
-    for (const element of allElements) {
-      if (element.scrollHeight > element.clientHeight + 100) {
-        // Check if it contains conversation links
-        const hasConversationLinks = element.querySelectorAll('a[href^="/c/"]').length > 0;
-        if (hasConversationLinks) {
-          console.log('[Spider] Found sidebar via fallback (contains conversation links)');
-          return element;
-        }
-      }
-    }
-    
-    return null;
-  }
-  
-  function scrollSidebar(sidebar) {
-    // Check if we can scroll further
-    const canScroll = sidebar.scrollHeight > sidebar.clientHeight;
-    const isAtBottom = Math.abs(sidebar.scrollHeight - sidebar.scrollTop - sidebar.clientHeight) < 10;
-    
-    if (!canScroll || isAtBottom) {
+// content.js — Runs on ChatGPT pages
+// Handles: sidebar link extraction, conversation scraping, pick-mode clicks
+
+console.log('[Spider] Content script loaded on', location.href);
+
+// ═══════════════════════════════════════════════════════════════════════
+//  MESSAGE HANDLER
+// ═══════════════════════════════════════════════════════════════════════
+
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  switch (msg.action) {
+    case 'extractLinks':
+      extractSidebarLinks(msg.limit || 0).then(sendResponse);
+      return true;
+
+    case 'findAllConversations':
+      findAllConversations().then(sendResponse);
+      return true;
+
+    case 'scrapeThisPage':
+      scrapeCurrentConversation(msg.conversation).then(sendResponse);
+      return true;
+
+    case 'scrapeViaAPI':
+      scrapeConversationViaAPI(msg.conversationId, msg.conversation).then(sendResponse);
+      return true;
+
+    case 'enablePickMode':
+      enablePickMode();
+      sendResponse({ ok: true });
       return false;
-    }
-    
-    // Save current position
-    const previousScrollTop = sidebar.scrollTop;
-    
-    // Scroll by 80% of the viewport height
-    const scrollAmount = sidebar.clientHeight * 0.8;
-    const targetScroll = Math.min(previousScrollTop + scrollAmount, sidebar.scrollHeight);
-    
-    sidebar.scrollTop = targetScroll;
-    
-    console.log(`[Spider] Scrolled sidebar from ${previousScrollTop} to ${targetScroll}`);
-    return true;
+
+    case 'disablePickMode':
+      disablePickMode();
+      sendResponse({ ok: true });
+      return false;
+
+    case 'ping':
+      sendResponse({ ok: true });
+      return false;
   }
-  
-  function countConversationsInSidebar() {
-    // Count unique conversation links in the entire document
-    const anchors = document.querySelectorAll('a[href^="/c/"]');
-    const seen = new Set();
-    
-    anchors.forEach(a => {
+});
+
+
+// ═══════════════════════════════════════════════════════════════════════
+//  SIDEBAR LINK EXTRACTION
+// ═══════════════════════════════════════════════════════════════════════
+
+/**
+ * Scroll the sidebar to load all conversations, then extract links.
+ * @param {number} limit - Max conversations to return (0 = all)
+ */
+/**
+ * Extract conversation links via API, with optional limit.
+ * Used by the Start Export button. Falls back to DOM if API unavailable.
+ */
+async function extractSidebarLinks(limit) {
+  try {
+    reportDiscoveryProgress(0, 'Loading conversations from API...');
+
+    const conversations = await fetchAllConversationsViaAPI();
+
+    if (conversations && conversations.length > 0) {
+      const result = limit > 0 ? conversations.slice(0, limit) : conversations;
+      console.log(`[Spider] Extracted ${result.length} conversation links (${conversations.length} total via API)`);
+      return { ok: true, conversations: result, total: conversations.length };
+    }
+
+    // API failed — fall back to DOM scrolling
+    reportDiscoveryProgress(0, 'API unavailable, falling back to sidebar scan...');
+    return await extractSidebarLinksViaDom(limit);
+
+  } catch (e) {
+    console.error('[Spider] extractLinks error:', e);
+    try {
+      return await extractSidebarLinksViaDom(limit);
+    } catch (e2) {
+      return { ok: false, error: e2.message };
+    }
+  }
+}
+
+/** DOM-based fallback for extractSidebarLinks */
+async function extractSidebarLinksViaDom(limit) {
+  const sidebar = findSidebar();
+  if (!sidebar) {
+    return { ok: false, error: 'Could not find ChatGPT sidebar. Make sure conversations are visible.' };
+  }
+
+  await scrollSidebarToBottom(sidebar);
+
+  const links = extractAllLinks();
+  const result = limit > 0 ? links.slice(0, limit) : links;
+
+  console.log(`[Spider] Extracted ${result.length} conversation links (${links.length} total via DOM)`);
+  return { ok: true, conversations: result, total: links.length };
+}
+
+
+/**
+ * Find ALL conversations by querying ChatGPT's internal API directly.
+ * This is far more reliable than DOM scrolling — it paginates through
+ * the backend-api/conversations endpoint using the user's session cookie.
+ *
+ * Falls back to DOM scraping if the API is unavailable.
+ */
+async function findAllConversations() {
+  try {
+    reportDiscoveryProgress(0, 'Querying ChatGPT API for full conversation list...');
+
+    const conversations = await fetchAllConversationsViaAPI();
+
+    if (conversations && conversations.length > 0) {
+      reportDiscoveryProgress(conversations.length, `Done! ${conversations.length} conversations found via API.`);
+      return { ok: true, conversations, total: conversations.length };
+    }
+
+    // API failed — fall back to DOM scraping
+    reportDiscoveryProgress(0, 'API unavailable, falling back to sidebar scan...');
+    return await findAllConversationsViaDom();
+
+  } catch (e) {
+    console.error('[Spider] findAllConversations error:', e);
+    // Try DOM fallback on any error
+    try {
+      reportDiscoveryProgress(0, `API error (${e.message}). Falling back to sidebar scan...`);
+      return await findAllConversationsViaDom();
+    } catch (e2) {
+      return { ok: false, error: e2.message };
+    }
+  }
+}
+
+
+/**
+ * Fetch all conversations from ChatGPT's internal API.
+ * Endpoint: GET /backend-api/conversations?offset=N&limit=100&order=updated
+ *
+ * Since the content script runs on chatgpt.com, fetch() automatically
+ * includes the session cookie — no extra auth needed.
+ */
+async function fetchAllConversationsViaAPI() {
+  const PAGE_SIZE = 100;
+  const allConversations = [];
+  let offset = 0;
+  let totalExpected = null;
+
+  while (true) {
+    const url = `${location.origin}/backend-api/conversations?offset=${offset}&limit=${PAGE_SIZE}&order=updated`;
+
+    console.log(`[Spider] API fetch: offset=${offset}, have=${allConversations.length}`);
+
+    const resp = await fetch(url, {
+      method: 'GET',
+      credentials: 'include',
+      headers: {
+        'Accept': 'application/json',
+      },
+    });
+
+    if (!resp.ok) {
+      console.error(`[Spider] API returned ${resp.status}: ${resp.statusText}`);
+      if (allConversations.length > 0) {
+        // We got some — return what we have
+        console.log(`[Spider] API failed mid-pagination, returning ${allConversations.length} conversations`);
+        return allConversations;
+      }
+      return null;  // Signal to use fallback
+    }
+
+    const data = await resp.json();
+
+    if (!data || !data.items) {
+      console.error('[Spider] API response has no items:', data);
+      return allConversations.length > 0 ? allConversations : null;
+    }
+
+    // First response tells us the total
+    if (totalExpected === null) {
+      totalExpected = data.total || data.items.length;
+      console.log(`[Spider] API reports ${totalExpected} total conversations`);
+    }
+
+    // Convert API items to our link format
+    for (const item of data.items) {
+      if (!item.id) continue;
+      const title = item.title || 'Untitled';
+      const href = `/c/${item.id}`;
+      const convUrl = `${location.origin}/c/${item.id}`;
+
+      allConversations.push({ title, url: convUrl, href });
+    }
+
+    reportDiscoveryProgress(
+      allConversations.length,
+      `Loaded ${allConversations.length} of ${totalExpected || '?'} conversations from API...`
+    );
+
+    // Are we done?
+    if (data.items.length < PAGE_SIZE) {
+      // Last page — fewer items than requested means no more
+      break;
+    }
+
+    offset += data.items.length;
+
+    // Safety: don't loop forever
+    if (offset > 50000) {
+      console.warn('[Spider] Safety limit reached at 50000 conversations');
+      break;
+    }
+
+    // Brief pause to be polite to the API
+    await sleep(200);
+  }
+
+  return allConversations;
+}
+
+
+/**
+ * DOM-based fallback: scroll the sidebar to discover conversations.
+ * Used when the API is unavailable (e.g., if ChatGPT changes the endpoint).
+ */
+async function findAllConversationsViaDom() {
+  const sidebar = findSidebar();
+  if (!sidebar) {
+    return { ok: false, error: 'Could not find ChatGPT sidebar.' };
+  }
+
+  const scrollable = findScrollableContainer(sidebar);
+  if (!scrollable) {
+    return { ok: false, error: 'Could not find scrollable sidebar container.' };
+  }
+
+  const maxScrollAttempts = 500;
+  const scrollDelay = 600;
+  let lastCount = 0;
+  let stableRounds = 0;
+  let lastScrollTop = -1;
+
+  const initialCount = countSidebarLinks();
+  reportDiscoveryProgress(initialCount, `DOM fallback: ${initialCount} visible. Scrolling...`);
+
+  for (let i = 0; i < maxScrollAttempts; i++) {
+    scrollable.scrollTop = scrollable.scrollHeight;
+
+    const allLinks = document.querySelectorAll('nav a[href*="/c/"]');
+    if (allLinks.length > 0) {
+      allLinks[allLinks.length - 1].scrollIntoView({ block: 'end', behavior: 'instant' });
+    }
+
+    await sleep(scrollDelay);
+
+    const currentCount = countSidebarLinks();
+    const currentScrollTop = scrollable.scrollTop;
+
+    if (currentCount !== lastCount) {
+      stableRounds = 0;
+      reportDiscoveryProgress(currentCount, `Found ${currentCount} conversations... (scroll ${i + 1})`);
+    } else {
+      stableRounds++;
+      const scrollStuck = Math.abs(currentScrollTop - lastScrollTop) < 5;
+      if (stableRounds >= 8 && scrollStuck) break;
+      if (stableRounds >= 15) break;
+    }
+
+    lastCount = currentCount;
+    lastScrollTop = currentScrollTop;
+  }
+
+  scrollable.scrollTop = 0;
+  const links = extractAllLinks();
+  reportDiscoveryProgress(links.length, `Done! ${links.length} conversations discovered (DOM).`);
+  return { ok: true, conversations: links, total: links.length };
+}
+
+
+/**
+ * Find the scrollable container that holds the conversation list.
+ * Walks UP from a conversation link to find the nearest scrollable ancestor.
+ */
+function findScrollableContainer(sidebar) {
+  const firstLink = document.querySelector('nav a[href*="/c/"]');
+  if (firstLink) {
+    let el = firstLink.parentElement;
+    while (el && el !== document.body) {
+      const style = window.getComputedStyle(el);
+      if ((style.overflowY === 'auto' || style.overflowY === 'scroll') && el.scrollHeight > el.clientHeight + 20) {
+        return el;
+      }
+      el = el.parentElement;
+    }
+  }
+
+  // Deepest scrollable div with conversation links
+  const allDivs = [...sidebar.querySelectorAll('div')];
+  let best = null, bestDepth = -1;
+  for (const div of allDivs) {
+    const style = window.getComputedStyle(div);
+    if ((style.overflowY === 'auto' || style.overflowY === 'scroll') && div.scrollHeight > div.clientHeight + 20) {
+      if (div.querySelector('a[href*="/c/"]')) {
+        let depth = 0, p = div;
+        while (p) { depth++; p = p.parentElement; }
+        if (depth > bestDepth) { bestDepth = depth; best = div; }
+      }
+    }
+  }
+  if (best) return best;
+
+  for (const div of allDivs) {
+    if (div.scrollHeight > div.clientHeight + 100 && div.querySelector('a[href*="/c/"]')) return div;
+  }
+
+  return sidebar;
+}
+
+
+function countSidebarLinks() {
+  const seen = new Set();
+  for (const sel of ['nav a[href*="/c/"]', 'nav li a[href*="/c/"]']) {
+    for (const a of document.querySelectorAll(sel)) {
       const href = a.getAttribute('href');
-      if (href) {
-        seen.add(href);
-      }
-    });
-    
-    return seen.size;
-  }
-  
-  function extractConversationLinks() {
-    try {
-      const anchors = document.querySelectorAll('a[href^="/c/"]');
-      const conversations = [];
-      const seen = new Set();
-      
-      anchors.forEach(a => {
-        try {
-          const href = a.getAttribute('href');
-          if (!href || seen.has(href)) return;
-          seen.add(href);
-          
-          let title = a.textContent?.trim() || a.innerText?.trim();
-          
-          // Skip CSS/JS code and very long titles
-          if (!title || 
-              title.length > 200 || 
-              title.includes('{') || 
-              title.includes('}') || 
-              title.includes('px') ||
-              title.includes('@keyframes') ||
-              title.includes('var(') ||
-              title.includes('.starburst') ||
-              title.includes('animation:') ||
-              title.includes('fill:') ||
-              title.includes('opacity:')) {
-            return;
-          }
-          
-          title = title.replace(/\s+/g, ' ').trim();
-          
-          if (title.length < 2 || title.length > 150) return;
-          
-          conversations.push({
-            id: href.replace('/c/', ''),
-            title: title,
-            url: 'https://chatgpt.com' + href
-          });
-        } catch (e) {
-          console.warn('[Spider] Error processing anchor:', e);
-        }
-      });
-      
-      console.log(`[Spider] Found ${conversations.length} conversations`);
-      return conversations;
-    } catch (error) {
-      console.error('[Spider] Error extracting links:', error);
-      return [];
+      if (href) seen.add(href);
     }
   }
-  
-  async function scrapeCurrentPage(conversation) {
-    try {
-      console.log(`[Spider] Scraping: ${conversation.title}`);
-      
-      // Wait for page to be fully loaded
-      await ensurePageFullyLoaded();
-      
-      // Extract messages
-      const messages = extractMessages();
-      
-      return {
-        ok: true,
-        data: {
-          id: conversation.id,
-          title: conversation.title,
-          url: conversation.url,
-          messages: messages,
-          scrapeDate: new Date().toISOString(),
-          messageCount: messages.length
-        }
-      };
-    } catch (error) {
-      console.error(`[Spider] Error scraping ${conversation.title}:`, error);
-      return {
-        ok: false,
-        error: error.message,
-        data: {
-          id: conversation.id,
-          title: conversation.title,
-          url: conversation.url,
-          messages: [],
-          error: error.message
-        }
-      };
+  return seen.size;
+}
+
+
+function extractAllLinks() {
+  const links = [], seen = new Set();
+  for (const sel of ['nav a[href*="/c/"]', 'nav li a[href*="/c/"]']) {
+    for (const a of document.querySelectorAll(sel)) {
+      const href = a.getAttribute('href');
+      if (!href || seen.has(href)) continue;
+      const title = (a.textContent || '').trim();
+      if (!title || title.length > 200 || /[{}@]|keyframes|animation:|var\(/.test(title)) continue;
+      seen.add(href);
+      links.push({ title, url: new URL(href, location.origin).href, href });
     }
   }
-  
-  async function ensurePageFullyLoaded() {
-    console.log('[Spider] Ensuring page is fully loaded...');
-    
-    // First, wait for the page to be interactive
-    await waitForPageInteractive();
-    
-    // Scroll to trigger lazy loading of all messages
-    await scrollToLoadAllContent();
-    
-    // Wait for any animations or lazy loading to complete
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    // Try to find message elements
-    const hasMessages = await waitForMessages();
-    
-    if (!hasMessages) {
-      throw new Error('No messages found on page after loading');
+  return links;
+}
+
+
+function reportDiscoveryProgress(count, message) {
+  try { chrome.runtime.sendMessage({ action: 'discoveryProgress', count, message }); } catch {}
+}
+
+
+function findSidebar() {
+  // Try multiple selectors for different ChatGPT UI versions
+  return document.querySelector('nav')
+      || document.querySelector('[class*="sidebar"]')
+      || document.querySelector('[role="navigation"]');
+}
+
+
+async function scrollSidebarToBottom(sidebar) {
+  // Use the same robust scroll container detection
+  const scrollable = findScrollableContainer(sidebar);
+
+  const maxScrollAttempts = 60;
+  const scrollDelay = 500;
+
+  let lastCount = 0;
+  let stableCount = 0;
+  let lastScrollTop = -1;
+
+  for (let i = 0; i < maxScrollAttempts; i++) {
+    scrollable.scrollTop = scrollable.scrollHeight;
+
+    // Also scroll last link into view as fallback
+    const allLinks = document.querySelectorAll('nav a[href*="/c/"]');
+    if (allLinks.length > 0) {
+      allLinks[allLinks.length - 1].scrollIntoView({ block: 'end', behavior: 'instant' });
     }
-    
-    console.log('[Spider] Page fully loaded and ready for scraping');
+
+    await sleep(scrollDelay);
+
+    const currentCount = countSidebarLinks();
+    const currentScrollTop = scrollable.scrollTop;
+    const scrollStuck = Math.abs(currentScrollTop - lastScrollTop) < 5;
+
+    if (currentCount === lastCount) {
+      stableCount++;
+      if (stableCount >= 5 && scrollStuck) break;
+    } else {
+      stableCount = 0;
+    }
+    lastCount = currentCount;
+    lastScrollTop = currentScrollTop;
   }
-  
-  function waitForPageInteractive(timeout = 30000) {
-    return new Promise((resolve, reject) => {
-      const start = Date.now();
-      
-      const check = () => {
-        if (document.readyState === 'complete' || document.readyState === 'interactive') {
-          resolve();
-        } else if (Date.now() - start > timeout) {
-          reject(new Error('Timeout waiting for page to be interactive'));
-        } else {
-          setTimeout(check, 500);
-        }
-      };
-      
-      check();
-    });
-  }
-  
-  async function scrollToLoadAllContent() {
-    console.log('[Spider] Scrolling to load all content...');
-    
-    // Scroll to top first
-    window.scrollTo(0, 0);
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    // Scroll to bottom slowly to trigger lazy loading
-    const scrollStep = 500;
-    const scrollDelay = 300;
-    const maxScrolls = 50;
-    
-    let lastScrollPosition = 0;
-    let scrollCount = 0;
-    
-    return new Promise((resolve) => {
-      const scrollInterval = setInterval(() => {
-        // Calculate next scroll position
-        const nextScroll = Math.min(
-          window.scrollY + scrollStep,
-          document.body.scrollHeight || document.documentElement.scrollHeight
-        );
-        
-        // Scroll to next position
-        window.scrollTo(0, nextScroll);
-        
-        // Check if we've reached the bottom or max scrolls
-        if (nextScroll === lastScrollPosition || scrollCount >= maxScrolls) {
-          clearInterval(scrollInterval);
-          console.log(`[Spider] Finished scrolling after ${scrollCount} steps`);
-          resolve();
-        }
-        
-        lastScrollPosition = nextScroll;
-        scrollCount++;
-      }, scrollDelay);
-    });
-  }
-  
-  function waitForMessages(timeout = 15000) {
-    return new Promise((resolve) => {
-      const start = Date.now();
-      
-      const check = () => {
-        // Look for message elements
-        const selectors = [
-          '[data-message-author-role]',
-          '.markdown',
-          '.whitespace-pre-wrap',
-          'article',
-          'div[class*="message"]',
-          'div[class*="Message"]'
-        ];
-        
-        for (const selector of selectors) {
-          const elements = document.querySelectorAll(selector);
-          if (elements.length > 0) {
-            console.log(`[Spider] Found ${elements.length} elements with selector: ${selector}`);
-            resolve(true);
-            return;
-          }
-        }
-        
-        if (Date.now() - start > timeout) {
-          console.warn('[Spider] Timeout waiting for messages');
-          resolve(false);
-          return;
-        }
-        
-        setTimeout(check, 1000);
-      };
-      
-      check();
-    });
-  }
-  
-  function extractMessages() {
+
+  // Scroll back to top so sidebar is usable
+  scrollable.scrollTop = 0;
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════
+//  CONVERSATION SCRAPING
+// ═══════════════════════════════════════════════════════════════════════
+
+async function scrapeCurrentConversation(conversationMeta) {
+  try {
+    // Wait for the conversation to fully render
+    await waitForContent();
+
+    // Scroll to load all messages (ChatGPT lazy-loads long conversations)
+    await scrollToLoadAll();
+
     const messages = [];
-    
-    // Method 1: Look for elements with data-message-author-role (most reliable)
-    const roleElements = document.querySelectorAll('[data-message-author-role]');
-    
-    if (roleElements.length > 0) {
-      console.log(`[Spider] Found ${roleElements.length} role elements`);
-      
-      roleElements.forEach(element => {
-        try {
-          const role = element.getAttribute('data-message-author-role');
-          let text = element.textContent?.trim() || element.innerText?.trim();
-          
-          // Clean up the text
-          if (text) {
-            text = text.replace(/\n+/g, ' ').replace(/\s+/g, ' ').trim();
-          }
-          
-          if (text && text.length > 5) {
-            // Skip system messages or UI elements
-            if (text.includes('ChatGPT') || text.includes('Model:') || 
-                text.includes('Upgrade to Plus') || text.length > 10000) {
-              return;
-            }
-            
-            messages.push({
-              role: role,
-              text: text,
-              timestamp: new Date().toISOString(),
-              source: 'role-attribute'
-            });
-          }
-        } catch (e) {
-          console.warn('[Spider] Error processing role element:', e);
-        }
-      });
-    }
-    
-    // Method 2: If no messages found with role attribute, try other selectors
-    if (messages.length === 0) {
-      console.log('[Spider] No role elements found, trying other selectors');
-      
-      const fallbackSelectors = [
-        '.markdown',
-        '.whitespace-pre-wrap',
-        'article',
-        'div[class*="message"]'
-      ];
-      
-      fallbackSelectors.forEach(selector => {
-        document.querySelectorAll(selector).forEach(element => {
-          try {
-            let text = element.textContent?.trim() || element.innerText?.trim();
-            
-            if (text) {
-              text = text.replace(/\n+/g, ' ').replace(/\s+/g, ' ').trim();
-            }
-            
-            if (text && text.length > 10) {
-              // Determine role based on element position or classes
-              let role = 'assistant';
-              if (element.closest('.items-end') || 
-                  element.closest('[data-message-author-role="user"]') ||
-                  element.textContent.includes('You:')) {
-                role = 'user';
-              }
-              
-              messages.push({
-                role: role,
-                text: text,
-                source: `selector: ${selector}`
-              });
-            }
-          } catch (e) {
-            console.warn(`[Spider] Error processing ${selector} element:`, e);
-          }
-        });
-      });
-    }
-    
-    // Remove duplicates (same text, same role)
-    const uniqueMessages = [];
-    const seenTexts = new Set();
-    
-    messages.forEach(msg => {
-      const textKey = msg.role + '|' + msg.text.substring(0, 100).replace(/\s+/g, ' ');
-      if (!seenTexts.has(textKey)) {
-        seenTexts.add(textKey);
-        uniqueMessages.push(msg);
+
+    // Find all message containers — ChatGPT uses [data-message-id] or article-like divs
+    const messageEls = findMessageElements();
+
+    for (const el of messageEls) {
+      const role = detectRole(el);
+      const content = extractContent(el);
+
+      if (content.trim()) {
+        messages.push({ role, content: content.trim() });
       }
-    });
-    
-    console.log(`[Spider] Extracted ${uniqueMessages.length} unique messages`);
-    return uniqueMessages;
+    }
+
+    if (messages.length === 0) {
+      return { ok: false, error: 'No messages found on this page' };
+    }
+
+    const data = {
+      title: conversationMeta?.title || document.title || 'Untitled',
+      url: location.href,
+      scrapedAt: new Date().toISOString(),
+      messageCount: messages.length,
+      messages,
+    };
+
+    console.log(`[Spider] Scraped "${data.title}": ${messages.length} messages`);
+    return { ok: true, data };
+
+  } catch (e) {
+    console.error('[Spider] scrape error:', e);
+    return { ok: false, error: e.message };
   }
-})();
+}
+
+
+function findMessageElements() {
+  // Try multiple selectors for different ChatGPT versions
+  let els = document.querySelectorAll('[data-message-id]');
+  if (els.length > 0) return els;
+
+  els = document.querySelectorAll('article');
+  if (els.length > 0) return els;
+
+  // Newer versions: divs with specific classes containing user/assistant messages
+  els = document.querySelectorAll('[class*="message"]');
+  if (els.length > 0) return els;
+
+  // Fallback: look for the main conversation container's direct children
+  const main = document.querySelector('main') || document.querySelector('[role="main"]');
+  if (main) {
+    // Find groups of text blocks
+    els = main.querySelectorAll('[data-testid*="conversation-turn"]');
+    if (els.length > 0) return els;
+  }
+
+  return [];
+}
+
+
+function detectRole(el) {
+  // Check data attributes
+  const authorAttr = el.getAttribute('data-message-author-role');
+  if (authorAttr) return authorAttr;  // 'user' or 'assistant'
+
+  // Check for avatar/icon indicators
+  const text = el.textContent || '';
+  const html = el.innerHTML || '';
+
+  // ChatGPT sometimes has a heading or icon indicating role
+  if (el.querySelector('[data-testid*="user"]') || html.includes('You said')) return 'user';
+  if (el.querySelector('[data-testid*="assistant"]') || html.includes('ChatGPT said')) return 'assistant';
+
+  // Check for user icon (usually a circle with initials)
+  const imgs = el.querySelectorAll('img');
+  for (const img of imgs) {
+    const alt = (img.alt || '').toLowerCase();
+    if (alt.includes('user') || alt.includes('you')) return 'user';
+    if (alt.includes('gpt') || alt.includes('chatgpt') || alt.includes('assistant')) return 'assistant';
+  }
+
+  // CSS class hints
+  const classes = el.className || '';
+  if (/\buser\b/i.test(classes)) return 'user';
+  if (/\bassistant\b/i.test(classes) || /\bbot\b/i.test(classes)) return 'assistant';
+
+  return 'unknown';
+}
+
+
+function extractContent(el) {
+  // Try to get the actual message content, excluding UI chrome
+  // Look for markdown-rendered content container
+  const contentEl = el.querySelector('[class*="markdown"]')
+                 || el.querySelector('[class*="prose"]')
+                 || el.querySelector('[class*="message-content"]')
+                 || el.querySelector('.text-base');
+
+  const target = contentEl || el;
+
+  // Get text content but try to preserve code blocks
+  let content = '';
+  const walker = document.createTreeWalker(target, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT);
+
+  let node;
+  while (node = walker.nextNode()) {
+    if (node.nodeType === Node.TEXT_NODE) {
+      content += node.textContent;
+    } else if (node.nodeName === 'BR' || node.nodeName === 'P' || node.nodeName === 'DIV') {
+      if (content && !content.endsWith('\n')) content += '\n';
+    } else if (node.nodeName === 'PRE' || node.nodeName === 'CODE') {
+      if (!content.endsWith('\n')) content += '\n';
+      content += '```\n';
+    }
+  }
+
+  return content;
+}
+
+
+async function waitForContent(timeoutMs = 8000) {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    if (findMessageElements().length > 0) return;
+    await sleep(500);
+  }
+}
+
+
+async function scrollToLoadAll() {
+  // Scroll to top first, then bottom, to trigger lazy-loaded content
+  window.scrollTo(0, 0);
+  await sleep(500);
+
+  const maxScrolls = 20;
+  let lastHeight = 0;
+  let stable = 0;
+
+  for (let i = 0; i < maxScrolls; i++) {
+    window.scrollTo(0, document.body.scrollHeight);
+    await sleep(600);
+
+    const h = document.body.scrollHeight;
+    if (h === lastHeight) {
+      stable++;
+      if (stable >= 2) break;
+    } else {
+      stable = 0;
+    }
+    lastHeight = h;
+  }
+
+  // Scroll back to top
+  window.scrollTo(0, 0);
+  await sleep(300);
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════
+//  PICK MODE — Click a sidebar item to export just that conversation
+// ═══════════════════════════════════════════════════════════════════════
+
+let pickModeActive = false;
+let pickOverlay = null;
+let pickHighlight = null;
+
+function enablePickMode() {
+  if (pickModeActive) return;
+  pickModeActive = true;
+
+  // Create overlay to intercept clicks
+  pickOverlay = document.createElement('div');
+  pickOverlay.id = 'spider-pick-overlay';
+  pickOverlay.style.cssText = `
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    z-index: 99998; cursor: crosshair;
+    background: rgba(102, 126, 234, 0.08);
+  `;
+
+  // Highlight element
+  pickHighlight = document.createElement('div');
+  pickHighlight.id = 'spider-pick-highlight';
+  pickHighlight.style.cssText = `
+    position: fixed; z-index: 99999;
+    border: 2px solid #667eea; border-radius: 6px;
+    background: rgba(102, 126, 234, 0.15);
+    pointer-events: none;
+    transition: all 0.1s ease;
+    display: none;
+  `;
+
+  document.body.appendChild(pickOverlay);
+  document.body.appendChild(pickHighlight);
+
+  pickOverlay.addEventListener('mousemove', pickMouseMove);
+  pickOverlay.addEventListener('click', pickClick);
+  document.addEventListener('keydown', pickKeyDown);
+}
+
+function disablePickMode() {
+  pickModeActive = false;
+  if (pickOverlay) { pickOverlay.remove(); pickOverlay = null; }
+  if (pickHighlight) { pickHighlight.remove(); pickHighlight = null; }
+  document.removeEventListener('keydown', pickKeyDown);
+}
+
+function pickMouseMove(e) {
+  // Temporarily hide overlay so elementFromPoint finds the real element underneath
+  pickOverlay.style.pointerEvents = 'none';
+  const elUnder = document.elementFromPoint(e.clientX, e.clientY);
+  pickOverlay.style.pointerEvents = 'auto';
+  if (!elUnder) return;
+
+  // Walk up to find the <a> with /c/ href
+  const link = findConversationLink(elUnder);
+  if (link) {
+    const rect = link.getBoundingClientRect();
+    pickHighlight.style.left = rect.left + 'px';
+    pickHighlight.style.top = rect.top + 'px';
+    pickHighlight.style.width = rect.width + 'px';
+    pickHighlight.style.height = rect.height + 'px';
+    pickHighlight.style.display = 'block';
+  } else {
+    pickHighlight.style.display = 'none';
+  }
+}
+
+function pickClick(e) {
+  e.preventDefault();
+  e.stopPropagation();
+
+  // Temporarily hide overlay to find element underneath
+  pickOverlay.style.pointerEvents = 'none';
+  const elUnder = document.elementFromPoint(e.clientX, e.clientY);
+  pickOverlay.style.pointerEvents = 'auto';
+
+  const link = findConversationLink(elUnder);
+  if (link) {
+    const href = link.getAttribute('href');
+    const title = (link.textContent || '').trim();
+    const url = new URL(href, location.origin).href;
+
+    console.log(`[Spider] Pick mode selected: "${title}" → ${url}`);
+
+    // Send to background for single-conversation scrape
+    chrome.runtime.sendMessage({
+      action: 'pickConversation',
+      conversation: { title, url, href }
+    });
+
+    disablePickMode();
+  }
+}
+
+function pickKeyDown(e) {
+  if (e.key === 'Escape') {
+    disablePickMode();
+    chrome.runtime.sendMessage({ action: 'pickCancelled' });
+  }
+}
+
+function findConversationLink(el) {
+  let current = el;
+  for (let i = 0; i < 10 && current; i++) {
+    if (current.tagName === 'A') {
+      const href = current.getAttribute('href') || '';
+      if (href.includes('/c/')) return current;
+    }
+    current = current.parentElement;
+  }
+  return null;
+}
+
+
+// ─── Utility ─────────────────────────────────────────────────────────
+function sleep(ms) {
+  return new Promise(r => setTimeout(r, ms));
+}

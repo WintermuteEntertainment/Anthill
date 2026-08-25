@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <radialGradient id="bodyGrad" cx="50%" cy="45%" r="50%">
+      <stop offset="0%" stop-color="#7c3aed"/>
+      <stop offset="100%" stop-color="#4c1d95"/>
+    </radialGradient>
+  </defs>
+
+  <!-- 8 Legs - organic spider pairs, wider strokes -->
+  <!-- Front legs -->
+  <path d="M 236,226 Q 178,162 110,90" stroke="#4c1d95" stroke-width="18" stroke-linecap="round" fill="none"/>
+  <path d="M 276,226 Q 334,162 402,90" stroke="#4c1d95" stroke-width="18" stroke-linecap="round" fill="none"/>
+
+  <!-- Second pair -->
+  <path d="M 222,248 Q 142,222 48,206" stroke="#4c1d95" stroke-width="17" stroke-linecap="round" fill="none"/>
+  <path d="M 290,248 Q 370,222 464,206" stroke="#4c1d95" stroke-width="17" stroke-linecap="round" fill="none"/>
+
+  <!-- Third pair -->
+  <path d="M 222,268 Q 142,292 48,308" stroke="#4c1d95" stroke-width="17" stroke-linecap="round" fill="none"/>
+  <path d="M 290,268 Q 370,292 464,308" stroke="#4c1d95" stroke-width="17" stroke-linecap="round" fill="none"/>
+
+  <!-- Back legs -->
+  <path d="M 236,282 Q 178,348 110,422" stroke="#4c1d95" stroke-width="18" stroke-linecap="round" fill="none"/>
+  <path d="M 276,282 Q 334,348 402,422" stroke="#4c1d95" stroke-width="18" stroke-linecap="round" fill="none"/>
+
+  <!-- Body - larger oblong -->
+  <ellipse cx="256" cy="256" rx="62" ry="72" fill="url(#bodyGrad)"/>
+
+  <!-- Two dot eyes -->
+  <circle cx="242" cy="244" r="8" fill="#1a1a2e"/>
+  <circle cx="270" cy="244" r="8" fill="#1a1a2e"/>
+</svg>

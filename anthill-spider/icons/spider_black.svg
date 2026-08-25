@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- Anthill Spider icon - black silhouette with glasses -->
+
+  <!-- Legs - 4 pairs, tapered with rounded ends -->
+  <!-- Upper-left -->
+  <line x1="470" y1="400" x2="195" y2="115" stroke="#000" stroke-width="52" stroke-linecap="round"/>
+  <!-- Upper-right -->
+  <line x1="554" y1="400" x2="829" y2="115" stroke="#000" stroke-width="52" stroke-linecap="round"/>
+  <!-- Mid-upper-left -->
+  <line x1="430" y1="475" x2="65" y2="330" stroke="#000" stroke-width="52" stroke-linecap="round"/>
+  <!-- Mid-upper-right -->
+  <line x1="594" y1="475" x2="959" y2="330" stroke="#000" stroke-width="52" stroke-linecap="round"/>
+  <!-- Mid-lower-left -->
+  <line x1="430" y1="555" x2="65" y2="700" stroke="#000" stroke-width="52" stroke-linecap="round"/>
+  <!-- Mid-lower-right -->
+  <line x1="594" y1="555" x2="959" y2="700" stroke="#000" stroke-width="52" stroke-linecap="round"/>
+  <!-- Lower-left -->
+  <line x1="470" y1="625" x2="210" y2="910" stroke="#000" stroke-width="52" stroke-linecap="round"/>
+  <!-- Lower-right -->
+  <line x1="554" y1="625" x2="814" y2="910" stroke="#000" stroke-width="52" stroke-linecap="round"/>
+
+  <!-- Body -->
+  <ellipse cx="512" cy="505" rx="145" ry="170" fill="#000"/>
+
+  <!-- Glasses -->
+  <!-- Bridge -->
+  <line x1="485" y1="525" x2="539" y2="525" stroke="#fff" stroke-width="7"/>
+  <!-- Left lens frame -->
+  <circle cx="465" cy="525" r="30" fill="#000" stroke="#fff" stroke-width="7"/>
+  <!-- Right lens frame -->
+  <circle cx="559" cy="525" r="30" fill="#000" stroke="#fff" stroke-width="7"/>
+  <!-- Left pupil -->
+  <circle cx="465" cy="525" r="10" fill="#fff"/>
+  <!-- Right pupil -->
+  <circle cx="559" cy="525" r="10" fill="#fff"/>
+
+  <!-- Fangs/mandibles -->
+  <rect x="480" y="670" width="14" height="28" rx="4" fill="#000"/>
+  <rect x="500" y="673" width="11" height="22" rx="3" fill="#000"/>
+  <rect x="517" y="673" width="11" height="22" rx="3" fill="#000"/>
+  <rect x="534" y="670" width="14" height="28" rx="4" fill="#000"/>
+</svg>

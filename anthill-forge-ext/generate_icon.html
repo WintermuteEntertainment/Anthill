@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html>
+<body>
+<canvas id="c" width="128" height="128"></canvas>
+<script>
+// Quick SVG-to-PNG icon generator for Anthill Forge
+// Open this file in a browser and right-click the canvas to save as PNG
+const c = document.getElementById('c');
+const ctx = c.getContext('2d');
+
+// Background gradient (amber to red, matching the extension theme)
+const bg = ctx.createLinearGradient(0, 0, 128, 128);
+bg.addColorStop(0, '#f59e0b');
+bg.addColorStop(1, '#dc2626');
+ctx.fillStyle = bg;
+ctx.beginPath();
+ctx.roundRect(0, 0, 128, 128, 24);
+ctx.fill();
+
+// Anvil shape (simplified forge icon)
+ctx.fillStyle = 'rgba(255,255,255,0.95)';
+
+// Anvil top (flat surface)
+ctx.beginPath();
+ctx.roundRect(24, 50, 80, 14, 4);
+ctx.fill();
+
+// Anvil body
+ctx.beginPath();
+ctx.moveTo(34, 64);
+ctx.lineTo(94, 64);
+ctx.lineTo(88, 100);
+ctx.lineTo(40, 100);
+ctx.closePath();
+ctx.fill();
+
+// Anvil horn (left point)
+ctx.beginPath();
+ctx.moveTo(24, 50);
+ctx.lineTo(10, 56);
+ctx.lineTo(24, 64);
+ctx.closePath();
+ctx.fill();
+
+// Spark/flame above
+ctx.fillStyle = 'rgba(255,255,255,0.8)';
+ctx.beginPath();
+ctx.arc(64, 32, 8, 0, Math.PI * 2);
+ctx.fill();
+
+ctx.fillStyle = 'rgba(255,255,255,0.5)';
+ctx.beginPath();
+ctx.arc(48, 26, 5, 0, Math.PI * 2);
+ctx.fill();
+ctx.beginPath();
+ctx.arc(78, 28, 4, 0, Math.PI * 2);
+ctx.fill();
+
+document.title = 'Right-click canvas → Save image as → icon.png';
+</script>
+</body>
+</html>

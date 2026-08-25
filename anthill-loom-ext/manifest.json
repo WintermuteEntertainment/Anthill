@@ -1,0 +1,19 @@
+{
+  "manifest_version": 3,
+  "name": "Anthill Loom",
+  "version": "1.0.0",
+  "description": "Data preprocessing dashboard — extract, deduplicate, and filter training pairs from ChatGPT conversation exports.",
+  "permissions": [
+    "storage",
+    "notifications"
+  ],
+  "host_permissions": [
+    "http://localhost:7801/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html"
+  }
+}

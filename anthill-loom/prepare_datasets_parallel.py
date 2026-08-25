@@ -14,8 +14,8 @@ def extract_pairs(conversation):
         b = msgs[i + 1]
 
         if a["role"] == "user" and b["role"] == "assistant":
-            prompt = a["text"].strip()
-            completion = b["text"].strip()
+            prompt = (a.get("content") or a.get("text") or "").strip()
+            completion = (b.get("content") or b.get("text") or "").strip()
 
             if prompt and completion:
                 pairs.append({
@@ -40,7 +40,7 @@ def main(input_path, output_path):
         with input_path.open("r", encoding="utf-8") as f:
             data = json.load(f)
     except Exception as e:
-        print(f"❌ Error reading JSON file: {e}")
+        print(f"[ERROR] Error reading JSON file: {e}")
         return 1
 
     conversations = data.get("conversations", [])
@@ -67,10 +67,10 @@ def main(input_path, output_path):
                     out.write(json.dumps(pair, ensure_ascii=False) + "\n")
                     total += 1
     except Exception as e:
-        print(f"❌ Error writing output file: {e}")
+        print(f"[ERROR] Error writing output file: {e}")
         return 1
 
-    print(f"✅ Wrote {total} instruction pairs → {output_path}")
+    print(f"[OK] Wrote {total} instruction pairs -> {output_path}")
     return 0
 
 

@@ -8,7 +8,7 @@ def main(input_path, output_path):
     out = Path(output_path)
     
     if not inp.exists():
-        print(f"❌ Input file not found: {inp}")
+        print(f"[ERROR] Input file not found: {inp}")
         return 1
     
     seen = set()
@@ -35,12 +35,8 @@ def main(input_path, output_path):
                     if key in seen:
                         continue
                     
-                    # Skip very short pairs
+                    # Skip very short pairs (likely empty or junk)
                     if len(prompt) < 5 or len(completion) < 5:
-                        continue
-                    
-                    # Skip very long pairs (likely errors)
-                    if len(prompt) > 10000 or len(completion) > 10000:
                         continue
                     
                     # Keep this pair
@@ -57,7 +53,7 @@ def main(input_path, output_path):
                     print(f"Warning: Line {line_num} invalid JSON: {e}")
                     continue
     except Exception as e:
-        print(f"❌ Error reading input file: {e}")
+        print(f"[ERROR] Error reading input file: {e}")
         return 1
     
     # Save cleaned data
@@ -66,10 +62,10 @@ def main(input_path, output_path):
             for k in kept:
                 f.write(json.dumps(k, ensure_ascii=False) + "\n")
     except Exception as e:
-        print(f"❌ Error writing output file: {e}")
+        print(f"[ERROR] Error writing output file: {e}")
         return 1
     
-    print(f"✅ Cleaned dataset: {len(kept)} pairs → {out}")
+    print(f"[OK] Cleaned dataset: {len(kept)} pairs -> {out}")
     print(f"   (Removed {len(seen) - len(kept)} duplicates/short pairs)")
     return 0
 
